@@ -1,6 +1,6 @@
 <template>
     <div>
-
+        Impressum
     </div>
 </template>
 <script setup lang="ts">
