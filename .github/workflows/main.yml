@@ -1,0 +1,40 @@
+name: Deploy Nuxt 3 App to Strato via SFTP
+
+on:
+  push:
+    branches:
+      - main  # Trigger deployment on push to the main branch
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v2
+
+    - name: Set up Node.js
+      uses: actions/setup-node@v3
+      with:
+        node-version: '16'  # Ensure compatibility with Nuxt 3
+
+    - name: Install dependencies
+      run: npm install
+
+    - name: Build the Nuxt app
+      run: npm run build
+
+    - name: Install sshpass
+      run: sudo apt-get install -y sshpass
+
+    - name: Upload files via SFTP
+      env:
+        SFTP_SERVER: ${{ secrets.SFTP_SERVER }}
+        SFTP_USERNAME: ${{ secrets.SFTP_USERNAME }}
+        SFTP_PASSWORD: ${{ secrets.SFTP_PASSWORD }}
+        SFTP_PORT: ${{ secrets.SFTP_PORT }}
+      run: |
+        sshpass -p "$SFTP_PASSWORD" sftp -o StrictHostKeyChecking=no -P $SFTP_PORT $SFTP_USERNAME@$SFTP_SERVER <<EOF
+          put -r ./.output/public /path/to/remote/directory
+          bye
+        EOF
