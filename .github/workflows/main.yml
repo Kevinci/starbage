@@ -35,6 +35,6 @@ jobs:
         SFTP_PORT: ${{ secrets.SFTP_PORT }}
       run: |
         sshpass -p "$SFTP_PASSWORD" sftp -o StrictHostKeyChecking=no -P $SFTP_PORT $SFTP_USERNAME@$SFTP_SERVER <<EOF
-          put -r ./.output/public /path/to/remote/directory
+          put -r ./.output/public /starbage
           bye
         EOF
