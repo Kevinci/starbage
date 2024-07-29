@@ -22,7 +22,7 @@ jobs:
       run: npm install
 
     - name: Build the Nuxt app
-      run: npm run build
+      run: npm run generate
 
     - name: Install sshpass
       run: sudo apt-get install -y sshpass
@@ -35,6 +35,6 @@ jobs:
         SFTP_PORT: ${{ secrets.SFTP_PORT }}
       run: |
         sshpass -p "$SFTP_PASSWORD" sftp -o StrictHostKeyChecking=no -P $SFTP_PORT $SFTP_USERNAME@$SFTP_SERVER <<EOF
-          put -r ./.output/public /starbage
+          put -r ./dist/* /starbage
           bye
         EOF
