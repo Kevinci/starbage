@@ -1,137 +1,34 @@
 <template>
     <div>
-        <nav class="absolute top-0 z-10 w-full bg-slate-800 bg-opacity-80">
-            <div class="max-w-screen-xl flex flex-wrap items-center justify-between mx-auto p-4">
-                <a href="#" class="flex items-center space-x-3 rtl:space-x-reverse">
-                    <img src="/logo.png" class="h-11" alt="Starbage Logo" />
-                </a>
-                <button type="button" @click="openModal"
-                    class="cursor-pointer py-2.5 px-5 me-2 text-sm font-medium text-gray-900 focus:outline-none bg-white rounded-lg border border-gray-200 hover:bg-gray-100 hover:text-blue-700 focus:z-10 focus:ring-4 focus:ring-gray-100 dark:focus:ring-gray-700 dark:bg-gray-800 dark:text-gray-400 dark:border-gray-600 dark:hover:text-white dark:hover:bg-gray-700">Our
-                    Mission</button>
-
-                <button type="button" @click="openModal"
-                    class="cursor-pointer py-2.5 px-5 me-2 text-sm font-medium text-gray-900 focus:outline-none bg-white rounded-lg border border-gray-200 hover:bg-gray-100 hover:text-blue-700 focus:z-10 focus:ring-4 focus:ring-gray-100 dark:focus:ring-gray-700 dark:bg-gray-800 dark:text-gray-400 dark:border-gray-600 dark:hover:text-white dark:hover:bg-gray-700">ISS
-                    Information</button>
-                <button id="hideShow"
-                    class="cursor-pointer py-2.5 px-5 me-2 text-sm font-medium text-gray-900 focus:outline-none bg-white rounded-lg border border-gray-200 hover:bg-gray-100 hover:text-blue-700 focus:z-10 focus:ring-4 focus:ring-gray-100 dark:focus:ring-gray-700 dark:bg-gray-800 dark:text-gray-400 dark:border-gray-600 dark:hover:text-white dark:hover:bg-gray-700">
-                    {{ $t('spacedebris') }}</button>
-                <button data-collapse-toggle="navbar-default" type="button"
-                    class="inline-flex items-center p-2 w-10 h-10 justify-center text-sm text-gray-500 rounded-lg md:hidden hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-gray-200 dark:text-gray-400 dark:hover:bg-gray-700 dark:focus:ring-gray-600"
-                    aria-controls="navbar-default" aria-expanded="false">
-                    <span class="sr-only">Open main menu</span>
-                    <svg class="w-5 h-5" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" fill="none"
-                        viewBox="0 0 17 14">
-                        <path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                            d="M1 1h15M1 7h15M1 13h15" />
-                    </svg>
-                </button>
-                <div class="hidden w-full md:block md:w-auto" id="navbar-default">
-                </div>
-                <div class="flex flex-row justify-center select-none">
-                    <div class="flex flex-row items-center right-1 ">
-                        <button @click="setLocale('de')" class="p-2 text-sm font-medium text-gray-50">DE
-                        </button>
-                        <button @click="setLocale('en')" class="p-2 text-sm font-medium text-gray-50">EN
-                        </button>
-                    </div>
-
-                </div>
-            </div>
-        </nav>
-        <div id="chart">
-        </div>
-        <footer class="grid grid-cols-2 absolute bottom-0 p-4 z-10 w-full bg-slate-800 bg-opacity-80 ">
-            <p class="font-bold font-sans text-left text-gray-50">
-            <div class="block py-2 px-3 text-white" id="time-log">{{ currentTime }}</div>
-            </p>
-            <p class="font-bold font-sans text-right text-gray-50">
-            <ul class="font-bold justify-end flex content-between">
-                <li>
-                    <NuxtLink to="/imprint">{{ $t('imprint') }}</NuxtLink>
-                </li>
-                <li>
-                    <NuxtLink to="/privacy">{{ $t('privacy') }}</NuxtLink>
-                </li>
-            </ul>
-            </p>
-        </footer>
-        <!-- Main modal -->
-        <div id="default-modal" v-show="showDialog"
-            class="flex overflow-y-auto overflow-x-hidden fixed top-0 right-0 left-0 z-50 justify-center items-center w-full md:inset-0 h-[calc(100%-1rem)] max-h-full">
-            <div class="relative p-4 w-full max-h-full max-w-4xl">
-                <!-- Modal content -->
-                <div class="relative bg-white rounded-lg shadow dark:bg-gray-700/75">
-                    <!-- Modal header -->
-                    <div class="flex items-center justify-between p-4 md:p-5 border-b rounded-t dark:border-gray-600">
-                        <h3 class="text-xl font-semibold text-gray-900 dark:text-white">
-                            Information about ISS
-                        </h3>
-                        <button type="button" @click="closeModal"
-                            class="text-gray-400 bg-transparent hover:bg-gray-200 hover:text-gray-900 rounded-lg text-sm w-8 h-8 ms-auto inline-flex justify-center items-center dark:hover:bg-gray-600 dark:hover:text-white"
-                            data-modal-hide="default-modal">
-                            <svg class="w-3 h-3" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" fill="none"
-                                viewBox="0 0 14 14">
-                                <path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"
-                                    stroke-width="2" d="m1 1 6 6m0 0 6 6M7 7l6-6M7 7l-6 6" />
-                            </svg>
-                            <span class="sr-only">Close modal</span>
-                        </button>
-                    </div>
-                    <!-- Modal body -->
-                    <div class="p-4 md:p-5 space-y-4">
-                        <h3 class="text-xl font-semibold text-gray-900 dark:text-white">
-                            The following astronauts are currently on the ISS</h3>
-                        <ul class="text-base leading-relaxed text-gray-500 dark:text-gray-400">
-                            <li v-for="(item, index) in issInfo" :key="index">{{ item.name }}</li>
-                        </ul>
-                    </div>
-                    <!-- Modal footer -->
-                    <div class="flex items-center p-4 md:p-5 border-t border-gray-200 rounded-b dark:border-gray-600">
-
-                        <button @click="closeModal" type="button"
-                            class="py-2.5 px-5 ms-3 text-sm font-medium text-gray-900 focus:outline-none bg-white rounded-lg border border-gray-200 hover:bg-gray-100 hover:text-blue-700 focus:z-10 focus:ring-4 focus:ring-gray-100 dark:focus:ring-gray-700 dark:bg-gray-800 dark:text-gray-400 dark:border-gray-600 dark:hover:text-white dark:hover:bg-gray-700">Close</button>
-                    </div>
-                </div>
-            </div>
-        </div>
+        <div id="chart"></div>
+        <Modal v-show="modalStore.showModal" @close-modal="modalStore.toggleModal(false)"></Modal>
     </div>
 </template>
 
 <script setup lang="ts">
-const { locale, setLocale } = useI18n()
+const currentTime = ref(new Date().toString());
 import { ref, onMounted } from 'vue';
 import * as THREE from 'three';
 import Globe from 'globe.gl';
 import * as satellite from 'satellite.js';
 import type { GlobeInstance } from 'globe.gl';
 import type { SatelliteData } from '../types/satteliteData';
-import type { ISSInfo } from '../types/issInformation';
+import type { SpaceDebris } from '../types/spaceDebris';
+import Modal from '~/components/Modal.vue';
 
-const currentTime = ref(new Date().toString());
+const modalStore = useModalStore(); // Initialize Store
 const satData = ref<SatelliteData[]>([]);
-const issInfo = ref<ISSInfo[]>([]);
 const location = ref([]);
 const world = ref<GlobeInstance | null>(null);
 const timeStep = 3 * 1000; // per frame
 const earthRadiusKm = 6371; // km
 const satSize = 100; // km
 let userPosition: GeolocationPosition | null = null;
-const showDialog = ref(false);
-const dialogContent = ref('Informationen zur ISS');
-
-const closeModal = () => {
-    showDialog.value = false;
-};
-
-const openModal = () => {
-    showDialog.value = true;
-};
 
 const markerSvg = `<svg viewBox="-4 0 36 36">
       <path fill="currentColor" d="M14,0 C21.732,0 28,5.641 28,12.6 C28,23.963 14,36 14,36 C14,36 0,24.064 0,12.6 C0,5.641 6.268,0 14,0 Z"></path>
       <circle fill="black" cx="14" cy="14" r="7"></circle>
     </svg>`;
-
 
 const initGlobe = () => {
     const chartElement = document.getElementById('chart');
@@ -155,8 +52,6 @@ const initGlobe = () => {
         .htmlElementsData([{ lat: userPosition?.coords.latitude, lng: userPosition?.coords.longitude }])
         .htmlElement(d => {
             const el = document.createElement('div');
-            console.log('hello', userPosition?.coords.latitude);
-
             el.innerHTML = markerSvg;
             el.style.color = 'blue';
             el.style.width = `24px`;
@@ -180,7 +75,6 @@ const initGlobe = () => {
             position => {
                 userPosition = position;
                 const { latitude, longitude } = userPosition.coords;
-                console.log('coords', userPosition.coords);
                 if (world.value) {
                     world.value.pointOfView({ lat: latitude, lng: longitude, altitude: 2.5 });
                 } else {
@@ -298,17 +192,38 @@ const fetchSatelliteData = () => {
         });
 };
 
-const fetchISSInfo = () => {
-    fetch('http://api.open-notify.org/astros.json')
-        .then(response => response.json())
-        .then(data => {
-            issInfo.value = data.people
-        })
-        .catch(error => {
-            console.error('Fehler beim Abrufen der ISS-Informationen:', error);
-        });
-};
+const getSpaceDebris = () => {
 
+    function generateRandom(min: number, max: number): number {
+        return Math.random() * (max - min) + min;
+    }
+
+    function generateSpaceDebrisData(numDebris: number): SpaceDebris[] {
+        const debrisData: SpaceDebris[] = [];
+        for (let i = 0; i < numDebris; i++) {
+            const debrisId = 50000 + i;
+            const altitude = i % 3 === 0 ? generateRandom(800, 1000) : (i % 3 === 1 ? 1400 : generateRandom(20000, 36000)); // Abwechselnd zwischen 800-1000 km, 1400 km und GEO
+            const debris: SpaceDebris = {
+                id: debrisId,
+                name: `Debris-${debrisId}`,
+                inclination: generateRandom(0, 10), // Inklination nahe dem Äquator, zwischen 0 und 10 Grad
+                longitude: generateRandom(0, 360), // Zufällige Längengrade
+                perigeeArg: generateRandom(0, 360), // Zufälliges Argument des Perigäums
+                meanAnomaly: generateRandom(0, 360), // Zufällige mittlere Anomalie
+                altitude: altitude, // Höhe in km
+                orbitalPeriod: generateRandom(11.5, 15.0) // Zufällige Umlaufzeit zwischen 11.5 und 15 Stunden
+            };
+            debrisData.push(debris);
+        }
+        return debrisData;
+    }
+
+    // Generieren von 18.700 Weltraumschrott-Daten und speichern in debrisData
+    const debrisData = generateSpaceDebrisData(18700);
+
+    // Ausgabe der gespeicherten Daten
+    console.log(debrisData);
+}
 
 const updateSatellitePositions = () => {
     const gmst = satellite.gstime(new Date());
@@ -360,8 +275,6 @@ const updateISSPosition = () => {
 
             // Aktualisieren Sie die Position der ISS-Gruppe
             issGroup.position.copy(issPosition);
-
-            console.log('ISS position updated:', issPosition);
         })
         .catch(error => {
             console.error('Error fetching ISS position:', error);
@@ -458,8 +371,6 @@ const getUserPosition = () => {
 
                 // Füge die rote Kugel zur Szene hinzu
                 world.value.scene().add(markerMesh);
-
-                console.log('User position:', markerMesh.position);
             },
             error => {
                 console.error('Error getting user location:', error);
@@ -528,6 +439,6 @@ onMounted(() => {
     startFrameTicker()
     addMoon()
     getUserPosition()
-    fetchISSInfo()
+    getSpaceDebris()
 });
 </script>
