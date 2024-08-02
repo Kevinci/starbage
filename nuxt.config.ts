@@ -9,8 +9,14 @@ export default defineNuxtConfig({
       autoprefixer: {},
     },
   },
-
-  modules: ['@pinia/nuxt', "@nuxtjs/i18n"],
+  modules: ['@pinia/nuxt', "@nuxtjs/i18n", "nuxt-security"],
+  security: {
+    headers: {
+      crossOriginResourcePolicy: 'cross-origin',
+      contentSecurityPolicy: false,
+      xFrameOptions: false,
+    },
+  },
   i18n: {
     vueI18n: './i18n.config.ts', // if you are using custom path, default
     detectBrowserLanguage: {
