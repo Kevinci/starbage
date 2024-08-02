@@ -1,6 +1,6 @@
 <template>
     <div>
-        <nav class="absolute top-0 z-10 w-full bg-slate-800 bg-opacity-80">
+        <nav class="fixed top-0 z-10 w-full bg-slate-800 bg-opacity-80">
             <div class="max-w-screen-xl flex flex-wrap items-center justify-between mx-auto p-4">
                 <a href="/" class="flex items-center space-x-3 rtl:space-x-reverse">
                     <img src="/logo.png" class="h-11" alt="Starbage Logo" />

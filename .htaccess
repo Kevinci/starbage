@@ -1,0 +1,21 @@
+# Aktiviert CORS für alle Domains
+<IfModule mod_headers.c>
+    Header Set Access-Control-Allow-Origin "*"
+    Header Set Access-Control-Allow-Methods "GET, POST, OPTIONS, PUT, DELETE"
+    Header Set Access-Control-Allow-Headers "X-Requested-With, Content-Type, Authorization"
+</IfModule>
+
+# Optional: CORS für nur bestimmte Domains erlauben
+# <IfModule mod_headers.c>
+#     SetEnvIf Origin "http(s)?://(www\.)?(example1\.com|example2\.com)$" AccessControlAllowOrigin=$0
+#     Header Set Access-Control-Allow-Origin "%{AccessControlAllowOrigin}e" env=AccessControlAllowOrigin
+#     Header Set Access-Control-Allow-Methods "GET, POST, OPTIONS, PUT, DELETE"
+#     Header Set Access-Control-Allow-Headers "X-Requested-With, Content-Type, Authorization"
+# </IfModule>
+
+# Aktiviert SSL und leitet alle HTTP-Anfragen zu HTTPS um
+<IfModule mod_rewrite.c>
+    RewriteEngine On
+    RewriteCond %{HTTPS} !=on
+    RewriteRule ^ https://%{HTTP_HOST}%{REQUEST_URI} [L,R=301]
+</IfModule>
