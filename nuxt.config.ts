@@ -15,6 +15,9 @@ export default defineNuxtConfig({
       contentSecurityPolicy: false,
       xFrameOptions: false,
     },
+    allowedMethodsRestricter: {
+      methods: ['GET']
+    }
   },
   i18n: {
     vueI18n: './i18n.config.ts', // if you are using custom path, default
