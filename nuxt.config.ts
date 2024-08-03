@@ -2,6 +2,7 @@
 export default defineNuxtConfig({
   devtools: { enabled: true },
   css: ['~/assets/css/main.css'],
+  ssr: false,
   postcss: {
     plugins: {
       tailwindcss: {},
@@ -12,8 +13,10 @@ export default defineNuxtConfig({
   security: {
     headers: {
       crossOriginResourcePolicy: 'cross-origin',
-      contentSecurityPolicy: false,
       xFrameOptions: false,
+      contentSecurityPolicy: {
+        'geolocation': ['self'] || false,
+      }
     },
     allowedMethodsRestricter: {
       methods: ['GET']
