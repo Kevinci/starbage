@@ -9,7 +9,20 @@ export default defineNuxtConfig({
       autoprefixer: {},
     },
   },
-  modules: ['@pinia/nuxt', "@nuxtjs/i18n", "nuxt-security"],
+  modules: ['@pinia/nuxt', "@nuxtjs/i18n", "nuxt-security","nuxt-proxy"],
+  proxy: {
+    options: {
+      target: 'http://api.open-notify.org',
+      changeOrigin: true,
+      pathRewrite: {
+        '^/api/todos': '/todos',
+        '^/api/users': '/users'
+      },
+      pathFilter: [
+        '/api/todos',
+      ]
+    }
+  },
   security: {
     headers: {
       contentSecurityPolicy: {

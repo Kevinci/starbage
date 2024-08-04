@@ -242,7 +242,7 @@ const updateSatellitePositions = () => {
 
 // Funktion zum Aktualisieren der Position der ISS und der Flügel
 const updateISSPosition = () => {
-    fetch('http://api.open-notify.org/iss-now.json')
+    fetch('api/iss-now.json')
         .then(response => response.json())
         .then(data => {
             const { latitude, longitude } = data.iss_position;

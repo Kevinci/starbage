@@ -15,6 +15,7 @@
     "axios": "^1.6.8",
     "globe.gl": "^2.32.3",
     "nuxt": "^3.11.2",
+    "nuxt-proxy": "^0.4.1",
     "nuxt-security": "^2.0.0-rc.9",
     "pinia": "^2.2.0",
     "satellite.js": "^5.0.0",
