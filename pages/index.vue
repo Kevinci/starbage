@@ -105,7 +105,7 @@ const initGlobe = () => {
     addClouds();
     getUserPosition()
     addMoon()
-    setInterval(updateISSPosition, 4500);
+    setInterval(updateISSPosition, 1500);
 };
 
 const addStars = () => {
@@ -242,13 +242,14 @@ const updateSatellitePositions = () => {
 
 // Funktion zum Aktualisieren der Position der ISS und der Flügel
 const updateISSPosition = () => {
-    fetch('api/iss-now.json')
+    fetch('https://api.wheretheiss.at/v1/satellites/25544')
         .then(response => response.json())
         .then(data => {
-            const { latitude, longitude } = data.iss_position;
+
+            const { latitude, longitude } = data;
 
             // Höhe der ISS über der Erde (in Kilometern)
-            const ISS_HEIGHT = 40; // Beispielhöhe von 400 km über der Erde
+            const ISS_HEIGHT = data.altitude / 10; // Beispielhöhe von 400 km über der Erde
 
             // Konvertiere Breiten- und Längengrade in Bogenmaß
             const phi = THREE.MathUtils.degToRad(90 - latitude); // Breitengrad in phi
