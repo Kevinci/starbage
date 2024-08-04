@@ -105,7 +105,7 @@ const initGlobe = () => {
     addClouds();
     getUserPosition()
     addMoon()
-    setInterval(updateISSPosition, 1500);
+    setInterval(updateISSPosition, 3500);
 };
 
 const addStars = () => {
@@ -296,14 +296,14 @@ const createISSGroup = () => {
     const mouse = new THREE.Vector2();
 
     // Erstelle die ISS-Kapsel
-    const issMaterial = new THREE.MeshPhongMaterial({ color: '#FFFFFF' });
+    const issMaterial = new THREE.MeshPhongMaterial({ color: '#DDDDDD' });
     const issGeometry = new THREE.CylinderGeometry(ISS_RADIUS, 1, 20, 32);
     const issMesh = new THREE.Mesh(issGeometry, issMaterial);
     issGroup.add(issMesh);
 
     // Erstelle den weißen Zylinder
     const cylinderGeometry = new THREE.CylinderGeometry(0.5, 0.5, 10, 32);
-    const cylinderMaterial = new THREE.MeshPhongMaterial({ color: '#FFFFFF' });
+    const cylinderMaterial = new THREE.MeshPhongMaterial({ color: '#DDDDDD' });
     const cylinder = new THREE.Mesh(cylinderGeometry, cylinderMaterial);
     cylinder.position.set(0, 0, 1);
     cylinder.rotation.set(Math.PI / 2, 0, 0);
@@ -333,7 +333,7 @@ const createISSGroup = () => {
 
     // Skalieren und Rotieren der ISS-Gruppe
     issGroup.scale.set(0.5, 0.5, 0.5);
-    issGroup.rotation.set(earthRadiusKm, Math.PI / 2, 85);
+    issGroup.rotation.set(-Math.PI / 2, 0, 0);
 
     return issGroup;
 };
