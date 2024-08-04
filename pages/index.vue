@@ -89,17 +89,18 @@ const initGlobe = () => {
         0
     );
 
-    const debrisMaterial = new THREE.MeshLambertMaterial({ color: '#3B83F6', transparent: true, opacity: 0.7 });
+    const debrisMaterial = new THREE.MeshLambertMaterial({ color: '#7f007d', transparent: true, opacity: 0.7 });
     world.value.objectThreeObject(() => new THREE.Mesh(debrisGeometry, debrisMaterial));
 
     debrisMaterial.visible = false;
 
-    const hideShowButton = document.getElementById("hideShow");
-    if (hideShowButton) {
-        hideShowButton.addEventListener("click", function () {
+    const hideShowButtons = document.getElementsByClassName("hideShow");
+    Array.from(hideShowButtons).forEach(button => { // Alle Elemente durchlaufen
+        button.addEventListener("click", function () {
             debrisMaterial.visible = !debrisMaterial.visible;
+            console.log('woooo');
         });
-    }
+    });
 
     addStars();
     addClouds();
@@ -219,10 +220,28 @@ const getSpaceDebris = () => {
     }
 
     // Generieren von 18.700 Weltraumschrott-Daten und speichern in debrisData
-    const debrisData = generateSpaceDebrisData(18700);
+    const debrisData = generateSpaceDebrisData(2000);
 
     // Ausgabe der gespeicherten Daten
     console.log(debrisData);
+
+    debrisData.forEach(debris => {
+        const { inclination, longitude, altitude } = debris; // Angenommene Eigenschaften
+        const markerGeometry = new THREE.SphereGeometry(0.5, 0.2, 0.2); // Größe des Markers
+        const markerMaterial = new THREE.MeshLambertMaterial({ color: 'red' }); // Farbe des Markers
+        const markerMesh = new THREE.Mesh(markerGeometry, markerMaterial);
+
+        // Konvertiere Breiten- und Längengrade in Bogenmaß
+        const phi = THREE.MathUtils.degToRad(90 - inclination);
+        const theta = THREE.MathUtils.degToRad(longitude);
+
+        // Setze die Position des Markers
+        const earthRadius = world.value.getGlobeRadius();
+        markerMesh.position.setFromSphericalCoords(earthRadius + altitude / 10, phi, theta);
+
+        // Füge den Marker zur Szene hinzu
+        world.value.scene().add(markerMesh);
+    });
 }
 
 const updateSatellitePositions = () => {

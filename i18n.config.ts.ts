@@ -6,13 +6,15 @@ export default defineI18nConfig(() => ({
         welcome: 'Willkommen',
         spacedebris: 'Weltraum Schrott anzeigen',
         imprint: 'Impressum',
-        privacy: 'Datenschutz'
+        privacy: 'Datenschutz',
+        satellites: 'Satelliten anzeigen'
       },
       en: {
         welcome: 'Welcome',
         spacedebris: 'View Space Debris',
         imprint: 'Imprint',
-        privacy: 'Privacy'
+        privacy: 'Privacy',
+        satellites: 'Show Satellites'
       }
     }
   }))

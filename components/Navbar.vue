@@ -8,15 +8,17 @@
 
                 <div class="max-md:hidden flex">
                     <div>
-                        <button type="button"
+                        <!-- <button type="button"
                             class="cursor-pointer py-2.5 px-5 me-2 text-sm font-medium text-gray-900 focus:outline-none bg-white rounded-lg border border-gray-200 hover:bg-gray-100 hover:text-blue-700 focus:z-10 focus:ring-4 focus:ring-gray-100 dark:focus:ring-gray-700 dark:bg-gray-800 dark:text-gray-400 dark:border-gray-600 dark:hover:text-white dark:hover:bg-gray-700">Our
-                            Mission</button>
+                            Mission</button> -->
                         <button type="button" @click="triggerModal"
                             class="cursor-pointer py-2.5 px-5 me-2 text-sm font-medium text-gray-900 focus:outline-none bg-white rounded-lg border border-gray-200 hover:bg-gray-100 hover:text-blue-700 focus:z-10 focus:ring-4 focus:ring-gray-100 dark:focus:ring-gray-700 dark:bg-gray-800 dark:text-gray-400 dark:border-gray-600 dark:hover:text-white dark:hover:bg-gray-700">ISS
                             Information</button>
-                        <button id="hideShow"
-                            class="cursor-pointer py-2.5 px-5 me-2 text-sm font-medium text-gray-900 focus:outline-none bg-white rounded-lg border border-gray-200 hover:bg-gray-100 hover:text-blue-700 focus:z-10 focus:ring-4 focus:ring-gray-100 dark:focus:ring-gray-700 dark:bg-gray-800 dark:text-gray-400 dark:border-gray-600 dark:hover:text-white dark:hover:bg-gray-700">
-                            {{ $t('spacedebris') }}</button>
+
+                        <button
+                            class="hideShow cursor-pointer py-2.5 px-5 me-2 text-sm font-medium text-gray-900 focus:outline-none bg-white rounded-lg border border-gray-200 hover:bg-gray-100 hover:text-blue-700 focus:z-10 focus:ring-4 focus:ring-gray-100 dark:focus:ring-gray-700 dark:bg-gray-800 dark:text-gray-400 dark:border-gray-600 dark:hover:text-white dark:hover:bg-gray-700">
+                            {{ $t('satellites') }}</button>
+
                     </div>
                     <div class="flex flex-row justify-center select-none">
                         <div class="flex flex-row items-center right-1 ">
@@ -46,9 +48,11 @@
                     <button type="button" @click="triggerModal"
                         class="cursor-pointer py-2.5 px-5 me-2 text-sm font-medium text-gray-900 focus:outline-none bg-white rounded-lg border border-gray-200 hover:bg-gray-100 hover:text-blue-700 focus:z-10 focus:ring-4 focus:ring-gray-100 dark:focus:ring-gray-700 dark:bg-gray-800 dark:text-gray-400 dark:border-gray-600 dark:hover:text-white dark:hover:bg-gray-700">ISS
                         Information</button>
-                    <button id="hideShow"
-                        class="cursor-pointer py-2.5 px-5 me-2 text-sm font-medium text-gray-900 focus:outline-none bg-white rounded-lg border border-gray-200 hover:bg-gray-100 hover:text-blue-700 focus:z-10 focus:ring-4 focus:ring-gray-100 dark:focus:ring-gray-700 dark:bg-gray-800 dark:text-gray-400 dark:border-gray-600 dark:hover:text-white dark:hover:bg-gray-700">
-                        {{ $t('spacedebris') }}</button>
+
+                    <button
+                        class="hideShow cursor-pointer py-2.5 px-5 me-2 text-sm font-medium text-gray-900 focus:outline-none bg-white rounded-lg border border-gray-200 hover:bg-gray-100 hover:text-blue-700 focus:z-10 focus:ring-4 focus:ring-gray-100 dark:focus:ring-gray-700 dark:bg-gray-800 dark:text-gray-400 dark:border-gray-600 dark:hover:text-white dark:hover:bg-gray-700">
+                        {{ $t('satellites') }}</button>
+
                     <div class="flex flex-row justify-center select-none">
                         <div class="flex flex-row items-center right-1 ">
                             <button @click="setLocale('de')" class="p-2 text-sm font-medium text-gray-50">DE
@@ -67,11 +71,13 @@
 
 <script setup lang="ts">
 import { useModalStore } from '~/stores/modalStore'; // Import Pinia Store
-const { locale, setLocale } = useI18n()
+const { setLocale } = useI18n()
 const modalStore = useModalStore(); // Initialize Store
 
 const triggerModal = () => {
     modalStore.toggleModal(true); // Set showModal to true
+    console.log('info');
+
 };
 
 const isNavbarVisible = ref(false);
