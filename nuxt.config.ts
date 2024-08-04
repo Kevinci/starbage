@@ -12,15 +12,30 @@ export default defineNuxtConfig({
   modules: ['@pinia/nuxt', "@nuxtjs/i18n", "nuxt-security"],
   security: {
     headers: {
-      crossOriginResourcePolicy: 'cross-origin',
-      xFrameOptions: false,
       contentSecurityPolicy: {
-        'geolocation': ['self'] || false,
-      }
+        'base-uri': ["'none'"],
+        'font-src': ["'self'", 'https:', 'data:'],
+        'form-action': ["'self'"],
+        'frame-ancestors': ["'self'"],
+        'img-src': ["'self'", 'data:'],
+        'object-src': ["'none'"],
+        'script-src-attr': ["'none'"],
+        'style-src': ["'self'", 'https:', "'unsafe-inline'"],
+        'script-src': ["'self'", 'https:', "'unsafe-inline'", "'strict-dynamic'", "'nonce-{{nonce}}'"],
+        'upgrade-insecure-requests': false
+      },
+      permissionsPolicy: {
+        'geolocation': ['self']
+      },
+      crossOriginResourcePolicy: 'cross-origin' || 'same-origin',
     },
-    allowedMethodsRestricter: {
-      methods: ['GET']
-    }
+    corsHandler: {
+      origin: '*',
+      methods: ['GET', 'HEAD', 'PUT', 'PATCH', 'POST', 'DELETE'],
+      preflight: {
+        statusCode: 204
+      },
+    },
   },
   i18n: {
     vueI18n: './i18n.config.ts', // if you are using custom path, default

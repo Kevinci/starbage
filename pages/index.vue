@@ -37,7 +37,7 @@ const initGlobe = () => {
         return;
     }
     world.value = Globe({ waitForGlobeReady: true, animateIn: false })(chartElement)
-        .globeImageUrl('//unpkg.com/three-globe/example/img/earth-day.jpg')
+        .globeImageUrl('/earth_day.png')
         .bumpImageUrl('/bump.png')
         // .backgroundImageUrl('/bg.png')
         .objectLat('lat')
