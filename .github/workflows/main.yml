@@ -42,4 +42,4 @@ jobs:
 
     - name: Transfer files to GCP VM
       run: |
-        gcloud compute scp --recurse ./dist/* ${{ secrets.GCP_VM_NAME }}:$HOME/var/www/html
+        gcloud compute scp --recurse ./dist/* ${{ secrets.GCP_VM_NAME }}:/var/www/html
