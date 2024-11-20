@@ -42,4 +42,9 @@ jobs:
 
     - name: Transfer files to GCP VM
       run: |
-        gcloud compute scp --recurse ./dist/* ${{ secrets.GCP_VM_NAME }}:/var/www/html
+        gcloud compute scp --recurse ./dist/* ${{ secrets.GCP_VM_NAME }}:/home/fu2studio/tmp --zone ${{ secrets.GCP_VM_ZONE }}
+
+    - name: Move files 
+      run: |
+        gcloud compute ssh ${{ secrets.GCP_VM_NAME }} --zone ${{ secrets.GCP_VM_ZONE }} --command "sudo mv /home/fu2studio/tmp/* /var/www/html/"
+
