@@ -6,7 +6,7 @@ on:
       - master  # Trigger deployment on push to the main branch
 
 jobs:
-  build:
+  deploy:
     runs-on: ubuntu-latest
 
     steps:
@@ -16,7 +16,7 @@ jobs:
     - name: Set up Node.js
       uses: actions/setup-node@v3
       with:
-        node-version: '17'  # Ensure compatibility with Nuxt 3
+        node-version: '17'
 
     - name: Install dependencies
       run: npm install
@@ -24,17 +24,22 @@ jobs:
     - name: Build the Nuxt app
       run: npm run generate
 
-    - name: Install Google Cloud SDK
-      uses: google-github-actions/setup-gcloud@v1
+    - name: Authenticate to Google Cloud
+      uses: google-github-actions/auth@v0
       with:
-        version: 'latest'
-        project_id: ${{ secrets.GCP_PROJECT_ID }}
-        service_account_key: ${{ secrets.GCP_SERVICE_ACCOUNT_KEY }}
+        credentials_json: ${{ secrets.GCP_SERVICE_ACCOUNT_KEY }}
+
+    - name: Set up Google Cloud project and compute zone
+      run: |
+        gcloud config set project ${{ secrets.GCP_PROJECT_ID }}
+        gcloud config set compute/zone ${{ secrets.GCP_VM_ZONE }}
+
+    - name: Generate SSH Key (if missing)
+      run: |
+        if [ ! -f ~/.ssh/google_compute_engine ]; then
+          ssh-keygen -t rsa -f ~/.ssh/google_compute_engine -C $USER -N ''
+        fi
 
     - name: Transfer files to GCP VM
-      env:
-        GCP_VM_NAME: ${{ secrets.GCP_VM_NAME }}
-        GCP_VM_ZONE: ${{ secrets.GCP_VM_ZONE }}
-        GCP_VM_PATH: ${{ secrets.GCP_VM_PATH }}
       run: |
-        gcloud compute scp --recurse ./dist/* $GCP_VM_NAME:$GCP_VM_PATH --zone $GCP_VM_ZONE
+        gcloud compute scp --recurse ./dist/* ${{ secrets.GCP_VM_NAME }}:$HOME/myapp
