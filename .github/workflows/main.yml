@@ -1,4 +1,4 @@
-name: Deploy Nuxt 3 App to Strato via SFTP
+name: Deploy Nuxt 3 App to GCP via gcloud
 
 on:
   push:
@@ -24,17 +24,17 @@ jobs:
     - name: Build the Nuxt app
       run: npm run generate
 
-    - name: Install sshpass
-      run: sudo apt-get install -y sshpass
+    - name: Install Google Cloud SDK
+      uses: google-github-actions/setup-gcloud@v1
+      with:
+        version: 'latest'
+        project_id: ${{ secrets.GCP_PROJECT_ID }}
+        service_account_key: ${{ secrets.GCP_SERVICE_ACCOUNT_KEY }}
 
-    - name: Upload files via SFTP
+    - name: Transfer files to GCP VM
       env:
-        SFTP_SERVER: ${{ secrets.SFTP_SERVER }}
-        SFTP_USERNAME: ${{ secrets.SFTP_USERNAME }}
-        SFTP_PASSWORD: ${{ secrets.SFTP_PASSWORD }}
-        SFTP_PORT: ${{ secrets.SFTP_PORT }}
+        GCP_VM_NAME: ${{ secrets.GCP_VM_NAME }}
+        GCP_VM_ZONE: ${{ secrets.GCP_VM_ZONE }}
+        GCP_VM_PATH: ${{ secrets.GCP_VM_PATH }}
       run: |
-        sshpass -p "$SFTP_PASSWORD" sftp -o StrictHostKeyChecking=no -P $SFTP_PORT $SFTP_USERNAME@$SFTP_SERVER <<EOF
-          put -r ./dist/* /starbage
-          bye
-        EOF
+        gcloud compute scp --recurse ./dist/* $GCP_VM_NAME:$GCP_VM_PATH --zone $GCP_VM_ZONE
