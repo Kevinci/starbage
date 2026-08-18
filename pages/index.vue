@@ -1,7 +1,9 @@
 <template>
     <div>
         <div id="chart"></div>
-        <Modal v-show="modalStore.showModal" @close-modal="modalStore.toggleModal(false)"></Modal>
+        <Modal v-if="modalStore.showModal" @close-modal="modalStore.toggleModal(false)" />
+        <DebrisModal v-if="modalStore.showDebrisModal" @close-modal="modalStore.toggleDebrisModal(false)" />
+        <AboutModal v-if="modalStore.showAboutModal" @close-modal="modalStore.toggleAboutModal(false)" />
     </div>
 </template>
 
@@ -11,18 +13,33 @@ import { ref, onMounted } from 'vue';
 import * as THREE from 'three';
 import Globe from 'globe.gl';
 import * as satellite from 'satellite.js';
+import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
+import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment.js';
 import type { GlobeInstance } from 'globe.gl';
 import type { SatelliteData } from '../types/satteliteData';
 import type { SpaceDebris } from '../types/spaceDebris';
 import Modal from '~/components/Modal.vue';
 
 const modalStore = useModalStore(); // Initialize Store
+const globeStore = useGlobeStore();
+const asset = useAssetPath();
 const satData = ref<SatelliteData[]>([]);
 const location = ref([]);
 const world = ref<GlobeInstance | null>(null);
 const timeStep = 3 * 1000; // per frame
 const earthRadiusKm = 6371; // km
 const satSize = 100; // km
+const issTargetSize = 24; // groesste Kantenlaenge des ISS-Modells in Globus-Einheiten (Radius = 100)
+const issSmoothing = 0.05; // Lerp-Faktor pro Frame für die ISS-Bewegung
+const issViewAltitude = 0.9; // Kamerahöhe in Globus-Radien, bei der die ISS das Bild füllt
+const followTransitionMs = 1400; // Dauer des Kameraflugs zur ISS
+
+// Material der Satelliten-Layer wird spaeter aus dem Store heraus ein-/ausgeblendet
+let satelliteMaterial: THREE.MeshLambertMaterial | null = null;
+
+// Stoppt Animationsschleifen und Intervalle beim Verlassen der Seite
+let isRunning = true;
+const intervals: ReturnType<typeof setInterval>[] = [];
 let userPosition: GeolocationPosition | null = null;
 
 const markerSvg = `<svg viewBox="-4 0 36 36">
@@ -37,9 +54,9 @@ const initGlobe = () => {
         return;
     }
     world.value = Globe({ waitForGlobeReady: true, animateIn: false })(chartElement)
-        .globeImageUrl('/earth_day.png')
-        .bumpImageUrl('/bump.png')
-        // .backgroundImageUrl('/bg.png')
+        .globeImageUrl(asset('earth_day.png'))
+        .bumpImageUrl(asset('bump.png'))
+        // .backgroundImageUrl(asset('bg.png'))
         .objectLat('lat')
         .objectLng('lng')
         .objectAltitude('alt')
@@ -62,12 +79,16 @@ const initGlobe = () => {
             return el;
         });
 
-    //Zoom False
-    world.value.controls().enableZoom = false
+    // Zoom erlauben, aber begrenzt: nicht in den Globus hinein und nicht ins Nichts
+    const controls = world.value.controls();
+    controls.enableZoom = true;
+    controls.zoomSpeed = 0.6;
+    controls.minDistance = world.value.getGlobeRadius() * 1.05;
+    controls.maxDistance = world.value.getGlobeRadius() * 8;
 
     // Auto-rotate
-    world.value.controls().autoRotate = true;
-    world.value.controls().autoRotateSpeed = 0.15;
+    controls.autoRotate = true;
+    controls.autoRotateSpeed = 0.15;
 
     //Start Camera on Location
     if (navigator.geolocation) {
@@ -84,29 +105,108 @@ const initGlobe = () => {
         )
     };
 
-    const debrisGeometry = new THREE.OctahedronGeometry(
+    const satelliteGeometry = new THREE.OctahedronGeometry(
         satSize * world.value.getGlobeRadius() / earthRadiusKm / 2,
         0
     );
 
-    const debrisMaterial = new THREE.MeshLambertMaterial({ color: '#7f007d', transparent: true, opacity: 0.7 });
-    world.value.objectThreeObject(() => new THREE.Mesh(debrisGeometry, debrisMaterial));
+    satelliteMaterial = new THREE.MeshLambertMaterial({ color: '#7f007d', transparent: true, opacity: 0.7 });
+    satelliteMaterial.visible = globeStore.showSatellites;
+    world.value.objectThreeObject(() => new THREE.Mesh(satelliteGeometry, satelliteMaterial!));
 
-    debrisMaterial.visible = false;
-
-    const hideShowButtons = document.getElementsByClassName("hideShow");
-    Array.from(hideShowButtons).forEach(button => { // Alle Elemente durchlaufen
-        button.addEventListener("click", function () {
-            debrisMaterial.visible = !debrisMaterial.visible;
-            console.log('woooo');
-        });
-    });
-
+    setupEnvironment();
+    addStarlinkChain();
     addStars();
     addClouds();
     getUserPosition()
     addMoon()
-    setInterval(updateISSPosition, 3500);
+    createISSGroup();
+    loadISSModel();
+    updateISSPosition();
+    intervals.push(setInterval(updateISSPosition, 3500));
+    animateISS();
+};
+
+// ------------------- Starlink-Kette (simuliert) -------------------
+// Erfundene Bahn, keine echten Koordinaten: eine geschlossene Kette in einer
+// geneigten Ebene, angelehnt an einen frisch ausgesetzten Starlink-Zug.
+const starlinkCount = 64;
+const starlinkInclinationDeg = 53; // typische Starlink-Neigung
+const starlinkRaanDeg = 25; // Lage der Bahnebene, frei gewählt
+const starlinkAltitudeKm = 550;
+const starlinkAltitudeExaggeration = 3; // sonst klebt die Kette am Globus
+const starlinkOrbitSpeed = 0.0009; // Radiant pro Frame
+
+let starlinkChain: THREE.Group | null = null;
+
+const addStarlinkChain = () => {
+    if (!world.value) return;
+
+    const globeRadius = world.value.getGlobeRadius();
+    const orbitRadius = globeRadius * (1 + (starlinkAltitudeKm / earthRadiusKm) * starlinkAltitudeExaggeration);
+
+    // orbit kippt die Bahnebene, chain dreht sich darin - das ist die Umlaufbewegung
+    const orbit = new THREE.Group();
+    orbit.rotation.set(
+        THREE.MathUtils.degToRad(starlinkInclinationDeg),
+        THREE.MathUtils.degToRad(starlinkRaanDeg),
+        0
+    );
+
+    const chain = new THREE.Group();
+    orbit.add(chain);
+
+    const satelliteGeometry = new THREE.BoxGeometry(3.2, 0.4, 1.1);
+    const starlinkMaterial = new THREE.MeshStandardMaterial({
+        color: '#e2e8f0',
+        emissive: '#60a5fa',
+        emissiveIntensity: 0.9,
+        metalness: 0.4,
+        roughness: 0.35
+    });
+
+    for (let i = 0; i < starlinkCount; i++) {
+        const angle = (i / starlinkCount) * Math.PI * 2;
+        const sat = new THREE.Mesh(satelliteGeometry, starlinkMaterial);
+        sat.position.set(Math.cos(angle) * orbitRadius, Math.sin(angle) * orbitRadius, 0);
+        sat.rotation.z = angle + Math.PI / 2; // Längsachse tangential zur Bahn
+        chain.add(sat);
+    }
+
+    // Dünne Bahnlinie, damit die Kette als Bahn lesbar bleibt
+    const trackSegments = 180;
+    const trackPoints: THREE.Vector3[] = [];
+    for (let i = 0; i <= trackSegments; i++) {
+        const angle = (i / trackSegments) * Math.PI * 2;
+        trackPoints.push(new THREE.Vector3(Math.cos(angle) * orbitRadius, Math.sin(angle) * orbitRadius, 0));
+    }
+    orbit.add(new THREE.Line(
+        new THREE.BufferGeometry().setFromPoints(trackPoints),
+        new THREE.LineBasicMaterial({ color: '#60a5fa', transparent: true, opacity: 0.2 })
+    ));
+
+    starlinkChain = chain;
+    world.value.scene().add(orbit);
+
+    const step = () => {
+        if (!isRunning) return;
+        if (starlinkChain) starlinkChain.rotation.z += starlinkOrbitSpeed;
+        requestAnimationFrame(step);
+    };
+    step();
+};
+
+// Das ISS-Modell nutzt PBR-Materialien: ohne Environment-Map bleiben Metallflaechen schwarz.
+const setupEnvironment = () => {
+    if (!world.value) return;
+
+    const scene = world.value.scene();
+    const pmremGenerator = new THREE.PMREMGenerator(world.value.renderer());
+
+    scene.environment = pmremGenerator.fromScene(new RoomEnvironment(), 0.04).texture;
+    scene.environmentIntensity = 0.6;
+
+    pmremGenerator.dispose();
 };
 
 const addStars = () => {
@@ -159,7 +259,7 @@ const addStars = () => {
 
 const addClouds = () => {
     // Füge Wolken nur hinzu, wenn die Globe-Komponente geladen ist
-    const CLOUDS_IMG_URL = '/clouds.png';
+    const CLOUDS_IMG_URL = asset('clouds.png');
     const CLOUDS_ALT = 0.004;
     const CLOUDS_ROTATION_SPEED = -0.006;
 
@@ -171,6 +271,7 @@ const addClouds = () => {
         world.value.scene().add(clouds);
 
         (function rotateClouds() {
+            if (!isRunning) return;
             clouds.rotation.y += CLOUDS_ROTATION_SPEED * Math.PI / 180;
             requestAnimationFrame(rotateClouds);
         })();
@@ -178,7 +279,7 @@ const addClouds = () => {
 };
 
 const fetchSatelliteData = () => {
-    fetch('data.txt')
+    fetch(asset('data.txt'))
         .then(response => response.text())
         .then(rawData => {
             const tleData = rawData.replace(/\r/g, '').split(/\n(?=[^12])/).filter(d => d).map(tle => tle.split('\n'));
@@ -259,109 +360,190 @@ const updateSatellitePositions = () => {
     world.value.objectsData(satData.value);
 };
 
-// Funktion zum Aktualisieren der Position der ISS und der Flügel
+// ---------------------------- ISS ----------------------------
+// issPivot trägt Position + Bahnausrichtung, das glTF hängt in einem eigenen
+// Holder darin - so kollidiert die Achsenkorrektur des Modells nicht mit der Lage.
+let issPivot: THREE.Object3D | null = null;
+let issPlaceholder: THREE.Mesh | null = null;
+let issHasFix = false;
+
+const issTargetPosition = new THREE.Vector3();
+const issTargetQuaternion = new THREE.Quaternion();
+const issPreviousPosition = new THREE.Vector3();
+
+const createISSGroup = () => {
+    if (!world.value) return;
+
+    issPivot = new THREE.Object3D();
+    issPivot.name = 'issGroup';
+    issPivot.visible = false; // erst zeigen, wenn eine Position bekannt ist
+
+    // Platzhalter, solange das grosse glTF-Modell noch laedt
+    issPlaceholder = new THREE.Mesh(
+        new THREE.OctahedronGeometry(issTargetSize / 5, 1),
+        new THREE.MeshStandardMaterial({ color: '#cbd5e1', metalness: 0.5, roughness: 0.4 })
+    );
+    issPivot.add(issPlaceholder);
+
+    world.value.scene().add(issPivot);
+};
+
+const loadISSModel = () => {
+    new GLTFLoader().load(
+        asset('ISS_stationary.glb'),
+        gltf => {
+            const model = gltf.scene;
+
+            // Auf eine im Globus-Maßstab sichtbare Größe normieren ...
+            const bounds = new THREE.Box3().setFromObject(model);
+            const size = bounds.getSize(new THREE.Vector3());
+            const longestEdge = Math.max(size.x, size.y, size.z) || 1;
+            model.scale.setScalar(issTargetSize / longestEdge);
+
+            // ... und um den eigenen Mittelpunkt zentrieren
+            bounds.setFromObject(model);
+            model.position.sub(bounds.getCenter(new THREE.Vector3()));
+
+            // Die längste Achse ist der Gitterträger mit den Solarpanelen. Der liegt
+            // beim Original quer zur Flugrichtung, also auf die X-Achse des Pivots drehen.
+            const holder = new THREE.Object3D();
+            holder.add(model);
+            const longestAxis = [size.x, size.y, size.z].indexOf(longestEdge);
+            if (longestAxis === 1) holder.rotation.z = Math.PI / 2; // Y -> X
+            if (longestAxis === 2) holder.rotation.y = Math.PI / 2; // Z -> X
+
+            if (!issPivot) return;
+
+            if (issPlaceholder) {
+                issPivot.remove(issPlaceholder);
+                issPlaceholder.geometry.dispose();
+                (issPlaceholder.material as THREE.Material).dispose();
+                issPlaceholder = null;
+            }
+            issPivot.add(holder);
+        },
+        undefined,
+        error => console.error('ISS-Modell konnte nicht geladen werden:', error)
+    );
+};
+
+// Erdzugewandte Lage: +Y des Pivots zeigt nach aussen, +Z in Flugrichtung.
+const setISSTarget = (position: THREE.Vector3) => {
+    const up = position.clone().normalize();
+    const forward = new THREE.Vector3();
+
+    if (issPreviousPosition.lengthSq() > 0) {
+        forward.copy(position).sub(issPreviousPosition);
+        forward.sub(up.clone().multiplyScalar(forward.dot(up))); // Radialanteil raus -> Tangente
+    }
+    if (forward.lengthSq() < 1e-8) {
+        // Beim ersten Fix fehlt die Bewegungsrichtung - irgendeine gültige Tangente nehmen,
+        // damit die Basis nicht entartet.
+        forward.set(0, 1, 0).sub(up.clone().multiplyScalar(up.y));
+        if (forward.lengthSq() < 1e-8) forward.set(1, 0, 0);
+    }
+    forward.normalize();
+
+    const side = new THREE.Vector3().crossVectors(up, forward).normalize();
+
+    issTargetQuaternion.setFromRotationMatrix(new THREE.Matrix4().makeBasis(side, up, forward));
+    issTargetPosition.copy(position);
+    issPreviousPosition.copy(position);
+};
+
 const updateISSPosition = () => {
     fetch('https://api.wheretheiss.at/v1/satellites/25544')
         .then(response => response.json())
         .then(data => {
+            if (!world.value || !issPivot) return;
 
-            const { latitude, longitude } = data;
+            const { latitude, longitude, altitude } = data;
 
-            // Höhe der ISS über der Erde (in Kilometern)
-            const ISS_HEIGHT = data.altitude / 10; // Beispielhöhe von 400 km über der Erde
+            // Wie bisher überhöht dargestellt, sonst klebt die ISS am Globus
+            const altitudeRatio = (altitude / 10) / world.value.getGlobeRadius();
+            const { x, y, z } = world.value.getCoords(latitude, longitude, altitudeRatio);
 
-            // Konvertiere Breiten- und Längengrade in Bogenmaß
-            const phi = THREE.MathUtils.degToRad(90 - latitude); // Breitengrad in phi
-            const theta = THREE.MathUtils.degToRad(longitude); // Längengrad in theta
+            setISSTarget(new THREE.Vector3(x, y, z));
 
-            // Radius der Erde
-            const earthRadius = world.value.getGlobeRadius();
-
-            // Position der ISS aktualisieren
-            const issPosition = new THREE.Vector3().setFromSphericalCoords(
-                earthRadius + ISS_HEIGHT, // Radius der ISS (Erdradius plus Höhe)
-                phi, // Breitengrad
-                theta // Längengrad
-            );
-
-            // Überprüfen, ob die ISS bereits vorhanden ist
-            let issGroup = world.value.scene().getObjectByName('issGroup');
-
-            if (!issGroup) {
-                // Erstelle die ISS-Gruppe
-                issGroup = createISSGroup();
-                world.value.scene().add(issGroup);
+            if (!issHasFix) {
+                issPivot.position.copy(issTargetPosition);
+                issPivot.quaternion.copy(issTargetQuaternion);
+                issPivot.visible = true;
+                issHasFix = true;
             }
-
-            // Aktualisieren Sie die Position der ISS-Gruppe
-            issGroup.position.copy(issPosition);
         })
         .catch(error => {
             console.error('Error fetching ISS position:', error);
         });
 };
 
-// Funktion zum Erstellen der ISS-Gruppe und ihrer Komponenten
-const createISSGroup = () => {
-    const ISS_HEIGHT = 40; // Höhe der ISS über der Erde in Kilometern
-    const ISS_RADIUS = 1; // Radius der ISS-Kugel
+// Kamera auf die ISS ausrichten. Ohne altitude bleibt der aktuelle Zoom erhalten,
+// damit im Verfolgungsmodus weiter gezoomt werden kann.
+const focusISS = (transitionMs = 0, altitude?: number) => {
+    if (!world.value || !issPivot || !issHasFix) return;
 
-    // Erstelle die ISS-Gruppe
-    const issGroup = new THREE.Object3D();
-    issGroup.name = 'issGroup'; // Geben Sie der Gruppe einen Namen, um sie später identifizieren zu können
+    const { lat, lng } = world.value.toGeoCoords(issPivot.position);
 
-    // Hier werden der Raycaster und der Vektor für die Mausposition definiert
-    const raycaster = new THREE.Raycaster();
-    const mouse = new THREE.Vector2();
-
-    // Erstelle die ISS-Kapsel
-    const issMaterial = new THREE.MeshPhongMaterial({ color: '#DDDDDD' });
-    const issGeometry = new THREE.CylinderGeometry(ISS_RADIUS, 1, 20, 32);
-    const issMesh = new THREE.Mesh(issGeometry, issMaterial);
-    issGroup.add(issMesh);
-
-    // Erstelle den weißen Zylinder
-    const cylinderGeometry = new THREE.CylinderGeometry(0.5, 0.5, 10, 32);
-    const cylinderMaterial = new THREE.MeshPhongMaterial({ color: '#DDDDDD' });
-    const cylinder = new THREE.Mesh(cylinderGeometry, cylinderMaterial);
-    cylinder.position.set(0, 0, 1);
-    cylinder.rotation.set(Math.PI / 2, 0, 0);
-    issGroup.add(cylinder);
-
-    // Erstelle Flügel
-    const wingGeometry = new THREE.BoxGeometry(1, 10, 2.5);
-    const wingMaterial = new THREE.MeshPhongMaterial({ color: 'lightblue' });
-
-    const wingPositions = [
-        { x: 0, y: 10, z: 6, rotation: Math.PI / 2 },    // Rechter Flügel 1
-        { x: 0, y: 10, z: -6, rotation: Math.PI / 2 },   // Linker Flügel 1
-        { x: 0, y: 5, z: 6, rotation: Math.PI / 2 },     // Rechter Flügel 2
-        { x: 0, y: 5, z: -6, rotation: Math.PI / 2 },    // Linker Flügel 2
-        { x: 0, y: -5, z: -6, rotation: -Math.PI / 2 },  // Rechter Flügel 3
-        { x: 0, y: -5, z: 6, rotation: -Math.PI / 2 },   // Linker Flügel 3
-        { x: 0, y: -10, z: -6, rotation: -Math.PI / 2 }, // Rechter Flügel 4
-        { x: 0, y: -10, z: 6, rotation: -Math.PI / 2 }   // Linker Flügel 4
-    ];
-
-    wingPositions.forEach(position => {
-        const wing = new THREE.Mesh(wingGeometry, wingMaterial);
-        wing.position.set(position.x, position.y, position.z);
-        wing.rotation.set(position.rotation, 0, 0);
-        issGroup.add(wing);
-    });
-
-    // Skalieren und Rotieren der ISS-Gruppe
-    issGroup.scale.set(0.5, 0.5, 0.5);
-    issGroup.rotation.set(-Math.PI / 2, 0, 0);
-
-    return issGroup;
+    world.value.pointOfView(
+        { lat, lng, altitude: altitude ?? world.value.pointOfView().altitude },
+        transitionMs
+    );
 };
 
+// Der Kameraflug braucht eine bekannte ISS-Position. Wird der Modus vor dem ersten
+// Fix aktiviert, startet der Flug nach, sobald die Position da ist.
+let followFlightPending = false;
+let followFlightUntil = 0;
+
+const startFollowFlight = () => {
+    if (!followFlightPending || !issHasFix) return;
+
+    followFlightPending = false;
+    followFlightUntil = performance.now() + followTransitionMs;
+    focusISS(followTransitionMs, issViewAltitude);
+};
+
+// Die API liefert nur alle 3,5 s - dazwischen wird interpoliert, damit die ISS gleitet.
+const animateISS = () => {
+    const step = () => {
+        if (!isRunning) return;
+
+        if (issPivot && issHasFix) {
+            issPivot.position.lerp(issTargetPosition, issSmoothing);
+            issPivot.quaternion.slerp(issTargetQuaternion, issSmoothing);
+
+            startFollowFlight();
+            // Während des Kamerafluges nicht dazwischenfunken, danach mitziehen
+            if (globeStore.followISS && performance.now() > followFlightUntil) focusISS();
+        }
+        requestAnimationFrame(step);
+    };
+    step();
+};
+
+watch(() => globeStore.followISS, following => {
+    if (!world.value) return;
+
+    world.value.controls().autoRotate = !following;
+
+    if (following) {
+        followFlightPending = true;
+        startFollowFlight();
+    } else {
+        followFlightPending = false;
+        world.value.pointOfView({ altitude: 2.5 }, followTransitionMs);
+    }
+});
+
+watch(() => globeStore.showSatellites, visible => {
+    if (satelliteMaterial) satelliteMaterial.visible = visible;
+});
+
 const startFrameTicker = () => {
-    setInterval(() => {
+    intervals.push(setInterval(() => {
         currentTime.value = new Date().toString();
         updateSatellitePositions();
-    }, timeStep);
+    }, timeStep));
 };
 
 const getUserPosition = () => {
@@ -418,7 +600,7 @@ const addMoon = () => {
 
     // Laden Sie die Textur für den Mond
     const textureLoader = new THREE.TextureLoader();
-    const moonTexture = textureLoader.load('/moon.jpg');
+    const moonTexture = textureLoader.load(asset('moon.jpg'));
 
     // Erstellen Sie das Material mit der Textur für den Mond
     const moonMaterial = new THREE.MeshPhongMaterial({ map: moonTexture });
@@ -447,6 +629,7 @@ const addMoon = () => {
 
     // Aktualisieren Sie die Position des Mondes in jedem Frame
     const animate = () => {
+        if (!isRunning) return;
         updateMoonPosition();
         requestAnimationFrame(animate);
     };
@@ -454,11 +637,16 @@ const addMoon = () => {
 };
 
 onMounted(() => {
+    isRunning = true;
     initGlobe()
     fetchSatelliteData()
     startFrameTicker()
-    addMoon()
-    getUserPosition()
     getSpaceDebris()
+});
+
+onUnmounted(() => {
+    isRunning = false;
+    intervals.forEach(clearInterval);
+    intervals.length = 0;
 });
 </script>
