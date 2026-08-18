@@ -33,6 +33,7 @@ const issTargetSize = 24; // groesste Kantenlaenge des ISS-Modells in Globus-Ein
 const issSmoothing = 0.05; // Lerp-Faktor pro Frame für die ISS-Bewegung
 const issViewAltitude = 0.9; // Kamerahöhe in Globus-Radien, bei der die ISS das Bild füllt
 const followTransitionMs = 1400; // Dauer des Kameraflugs zur ISS
+const zoomFloorFactor = 0.94; // Zoom endet knapp unterhalb der ISS-Bahn
 
 // Material der Satelliten-Layer wird spaeter aus dem Store heraus ein-/ausgeblendet
 let satelliteMaterial: THREE.MeshLambertMaterial | null = null;
@@ -54,7 +55,7 @@ const initGlobe = () => {
         return;
     }
     world.value = Globe({ waitForGlobeReady: true, animateIn: false })(chartElement)
-        .globeImageUrl(asset('earth_day.png'))
+        .globeImageUrl(asset('earth_day_hires.jpg'))
         .bumpImageUrl(asset('bump.png'))
         // .backgroundImageUrl(asset('bg.png'))
         .objectLat('lat')
@@ -64,7 +65,7 @@ const initGlobe = () => {
         .objectLabel('name')
         .atmosphereAltitude(0.26)
         .onGlobeReady(() => {
-
+            sharpenGlobeTextures();
         })
         .htmlElementsData([{ lat: userPosition?.coords.latitude, lng: userPosition?.coords.longitude }])
         .htmlElement(d => {
@@ -83,7 +84,7 @@ const initGlobe = () => {
     const controls = world.value.controls();
     controls.enableZoom = true;
     controls.zoomSpeed = 0.6;
-    controls.minDistance = world.value.getGlobeRadius() * 1.05;
+    controls.minDistance = world.value.getGlobeRadius() * 1.3; // vorläufig, bis die ISS-Bahn bekannt ist
     controls.maxDistance = world.value.getGlobeRadius() * 8;
 
     // Auto-rotate
@@ -295,6 +296,29 @@ const addStarlinkChain = () => {
         requestAnimationFrame(step);
     };
     step();
+};
+
+// Ohne anisotrope Filterung wird die Erdtextur an flachen Blickwinkeln matschig.
+// three-globe laedt die Texturen selbst, deshalb erst in onGlobeReady nachziehen.
+const sharpenGlobeTextures = () => {
+    if (!world.value) return;
+
+    const material = (world.value as any).globeMaterial?.() as THREE.MeshPhongMaterial | undefined;
+    if (!material) return;
+
+    const maxAnisotropy = world.value.renderer().capabilities.getMaxAnisotropy();
+
+    [material.map, material.bumpMap].forEach(texture => {
+        if (!texture) return;
+
+        texture.anisotropy = maxAnisotropy;
+        texture.minFilter = THREE.LinearMipmapLinearFilter;
+        texture.magFilter = THREE.LinearFilter;
+        texture.generateMipmaps = true;
+        texture.needsUpdate = true;
+    });
+
+    material.needsUpdate = true;
 };
 
 // Das ISS-Modell nutzt PBR-Materialien: ohne Environment-Map bleiben Metallflaechen schwarz.
@@ -571,6 +595,9 @@ const updateISSPosition = () => {
                 issPivot.quaternion.copy(issTargetQuaternion);
                 issPivot.visible = true;
                 issHasFix = true;
+
+                // Näher als knapp unter die ISS soll die Kamera nicht heran
+                world.value.controls().minDistance = issTargetPosition.length() * zoomFloorFactor;
             }
         })
         .catch(error => {

@@ -19,6 +19,10 @@ Gebaut mit Nuxt 3 (SPA, `ssr: false`), three.js / globe.gl, Pinia, Tailwind CSS 
 | [The Space Devs](https://thespacedevs.com/) | Personen im All | ja |
 | generiert im Client | Trümmerwolke, Starlink-Kette, Bergungsschiff | nein, erfundene Koordinaten |
 
+Die Erdtexturen (`earth_day_hires.jpg`, `bump.png`) stammen aus dem
+[Blue Marble Next Generation](https://visibleearth.nasa.gov/collection/1484/blue-marble)
+Datensatz der NASA (5400x2700, public domain).
+
 Größen und Bahnhöhen sind stark überzeichnet - maßstabsgetreu wäre kein Objekt sichtbar.
 
 ## Entwicklung
