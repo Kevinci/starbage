@@ -19,9 +19,17 @@ Gebaut mit Nuxt 3 (SPA, `ssr: false`), three.js / globe.gl, Pinia, Tailwind CSS 
 | [The Space Devs](https://thespacedevs.com/) | Personen im All | ja |
 | generiert im Client | Trümmerwolke, Starlink-Kette, Bergungsschiff | nein, erfundene Koordinaten |
 
-Die Erdtexturen (`earth_day_hires.jpg`, `bump.png`) stammen aus dem
-[Blue Marble Next Generation](https://visibleearth.nasa.gov/collection/1484/blue-marble)
-Datensatz der NASA (5400x2700, public domain).
+Die Tag- und Nachtseite wird aus dem echten subsolaren Punkt zur aktuellen Uhrzeit
+berechnet (`getSubsolarPoint` in `pages/index.vue`) und in einem eigenen ShaderMaterial
+zwischen zwei Texturen geblendet:
+
+- Tag: [Blue Marble Next Generation](https://visibleearth.nasa.gov/collection/1484/blue-marble),
+  5400x2700
+- Nacht: [VIIRS City Lights 2012](https://visibleearth.nasa.gov/images/79765/night-lights-2012-flat-map),
+  3600x1800
+
+Beide von der NASA und public domain. Die Grenze wird im UV-Raum der Textur gerechnet,
+also unabhängig davon, wie three-globe die Kugel gedreht hat.
 
 Größen und Bahnhöhen sind stark überzeichnet - maßstabsgetreu wäre kein Objekt sichtbar.
 
