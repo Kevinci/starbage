@@ -65,7 +65,7 @@ const initGlobe = () => {
         .objectLabel('name')
         .atmosphereAltitude(0.26)
         .onGlobeReady(() => {
-            sharpenGlobeTextures();
+            tuneGlobeMaterial();
         })
         .htmlElementsData([{ lat: userPosition?.coords.latitude, lng: userPosition?.coords.longitude }])
         .htmlElement(d => {
@@ -298,9 +298,14 @@ const addStarlinkChain = () => {
     step();
 };
 
-// Ohne anisotrope Filterung wird die Erdtextur an flachen Blickwinkeln matschig.
-// three-globe laedt die Texturen selbst, deshalb erst in onGlobeReady nachziehen.
-const sharpenGlobeTextures = () => {
+// three-globe lädt die Globus-Texturen selbst, deshalb erst in onGlobeReady nachziehen:
+// anisotrope Filterung gegen matschige Oberfläche an flachen Blickwinkeln und eine
+// Helligkeitskorrektur, weil das Blue-Marble-Foto rund 40 % dunkler ist als die
+// früher verwendete, stark aufgehellte Textur.
+const globeDiffuseBoost = 1.35; // Faktor auf die beleuchtete Seite
+const globeSelfIllumination = 0.3; // hebt zusätzlich die Nachtseite an
+
+const tuneGlobeMaterial = () => {
     if (!world.value) return;
 
     const material = (world.value as any).globeMaterial?.() as THREE.MeshPhongMaterial | undefined;
@@ -317,6 +322,16 @@ const sharpenGlobeTextures = () => {
         texture.generateMipmaps = true;
         texture.needsUpdate = true;
     });
+
+    // color wird im Shader mit der Textur multipliziert, Werte ueber 1 hellen auf
+    material.color.setScalar(globeDiffuseBoost);
+
+    // emissiveMap zeigt die Erde auch dort, wo kein Licht hinfällt
+    if (material.map) {
+        material.emissiveMap = material.map;
+        material.emissive.setScalar(1);
+        material.emissiveIntensity = globeSelfIllumination;
+    }
 
     material.needsUpdate = true;
 };
