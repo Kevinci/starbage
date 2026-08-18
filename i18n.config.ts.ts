@@ -29,11 +29,11 @@ export default defineI18nConfig(() => ({
         purposeText: 'Der Globus zeigt, was tatsächlich über unseren Köpfen passiert: tausende aktive Satelliten und dazu die Trümmer aus siebzig Jahren Raumfahrt. Starbage möchte darauf aufmerksam machen – nicht mehr und nicht weniger.',
         dataTitle: 'Was echt ist und was nicht',
         dataRealLabel: 'Echte Daten',
-        dataRealText: 'Die Position der ISS kommt live von wheretheiss.at, die Satellitenbahnen aus einem TLE-Datensatz, die Personen im All von The Space Devs. Tag- und Nachtseite entsprechen dem tatsächlichen Sonnenstand zur aktuellen Uhrzeit.',
+        dataRealText: 'Die Position der ISS kommt live von wheretheiss.at, die Satellitenbahnen aus einem TLE-Datensatz, die Personen im All von The Space Devs. Tag- und Nachtseite sowie die Richtung, in der die Sonne steht, entsprechen dem tatsächlichen Sonnenstand zur aktuellen Uhrzeit.',
         dataFakeLabel: 'Simuliert',
         dataFakeText: 'Die Trümmerwolke, die Starlink-Kette und das Bergungsschiff mit Fangnetz laufen auf erfundenen Koordinaten und stehen nur symbolisch für die echte Lage.',
         dataScaleLabel: 'Überzeichnet',
-        dataScaleText: 'Größen und Bahnhöhen sind stark vergrößert. Maßstabsgetreu wäre kein einziges Objekt sichtbar.'
+        dataScaleText: 'Größen und Bahnhöhen sind stark vergrößert, ebenso Größe und Abstand der Sonne. Maßstabsgetreu wäre kein einziges Objekt sichtbar.'
       },
       debris: {
         button: 'Weltraumschrott',
@@ -94,11 +94,11 @@ export default defineI18nConfig(() => ({
         purposeText: 'The globe shows what is really going on above our heads: thousands of active satellites plus the debris from seventy years of spaceflight. Starbage wants to draw attention to that – nothing more, nothing less.',
         dataTitle: 'What is real and what is not',
         dataRealLabel: 'Real data',
-        dataRealText: 'The ISS position comes live from wheretheiss.at, the satellite orbits from a TLE data set, the people in space from The Space Devs. Day and night side match the actual position of the sun right now.',
+        dataRealText: 'The ISS position comes live from wheretheiss.at, the satellite orbits from a TLE data set, the people in space from The Space Devs. Day and night side, and the direction the sun sits in, match the actual position of the sun right now.',
         dataFakeLabel: 'Simulated',
         dataFakeText: 'The debris cloud, the Starlink chain and the net-carrying collector craft run on made-up coordinates and only stand in symbolically for the real situation.',
         dataScaleLabel: 'Exaggerated',
-        dataScaleText: 'Sizes and orbit altitudes are heavily scaled up. At true scale not a single object would be visible.'
+        dataScaleText: 'Sizes and orbit altitudes are heavily scaled up, as are the size and distance of the sun. At true scale not a single object would be visible.'
       },
       debris: {
         button: 'Space Debris',
