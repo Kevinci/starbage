@@ -1,7 +1,8 @@
 # Starbage
 
 Ein interaktiver 3D-Globus, der zeigt, was im Erdorbit unterwegs ist: die ISS in Echtzeit,
-Satellitenbahnen aus TLE-Daten, eine simulierte Trümmerwolke und eine Starlink-Kette.
+Satellitenbahnen aus TLE-Daten, eine simulierte Trümmerwolke, eine Starlink-Kette und ein
+Bergungsschiff mit Fangnetz.
 
 > **Starbage ist ein fiktives Projekt.** Es gibt keine Organisation, keine Mission und keine
 > Aufräumsatelliten dahinter. Die Seite will nur darauf aufmerksam machen, wie voll der Orbit ist.
@@ -16,7 +17,7 @@ Gebaut mit Nuxt 3 (SPA, `ssr: false`), three.js / globe.gl, Pinia, Tailwind CSS 
 | [wheretheiss.at](https://wheretheiss.at/) | Live-Position der ISS | ja |
 | `public/data.txt` (TLE) | Satellitenbahnen, propagiert mit `satellite.js` | ja |
 | [The Space Devs](https://thespacedevs.com/) | Personen im All | ja |
-| generiert im Client | Trümmerwolke und Starlink-Kette | nein, erfundene Koordinaten |
+| generiert im Client | Trümmerwolke, Starlink-Kette, Bergungsschiff | nein, erfundene Koordinaten |
 
 Größen und Bahnhöhen sind stark überzeichnet - maßstabsgetreu wäre kein Objekt sichtbar.
 

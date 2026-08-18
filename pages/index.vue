@@ -116,6 +116,7 @@ const initGlobe = () => {
 
     setupEnvironment();
     addStarlinkChain();
+    addCollectorShip();
     addStars();
     addClouds();
     getUserPosition()
@@ -125,6 +126,106 @@ const initGlobe = () => {
     updateISSPosition();
     intervals.push(setInterval(updateISSPosition, 3500));
     animateISS();
+};
+
+// -------------- Bergungsschiff mit Fangnetz (simuliert) --------------
+// Erfundenes Raumschiff, das mit einem Netz Trümmer einsammelt - angelehnt an
+// Missionen wie ClearSpace-1. Eigene Bahnebene, keine echten Koordinaten.
+const collectorInclinationDeg = -28;
+const collectorRaanDeg = 115;
+const collectorAltitudeKm = 750;
+const collectorAltitudeExaggeration = 3.4;
+const collectorOrbitSpeed = 0.0022; // schneller als die Starlink-Kette
+
+let collectorOrbit: THREE.Group | null = null;
+
+// Nase des Schiffs zeigt in +X, das Netz öffnet sich nach vorne.
+const buildCollectorShip = () => {
+    const ship = new THREE.Group();
+
+    const hullMaterial = new THREE.MeshStandardMaterial({ color: '#e2e8f0', metalness: 0.6, roughness: 0.35 });
+    const accentMaterial = new THREE.MeshStandardMaterial({ color: '#E47F00', metalness: 0.4, roughness: 0.5 });
+    const panelMaterial = new THREE.MeshStandardMaterial({ color: '#1e3a8a', metalness: 0.3, roughness: 0.6 });
+    const netMaterial = new THREE.MeshBasicMaterial({
+        color: '#7dd3fc',
+        wireframe: true,
+        transparent: true,
+        opacity: 0.55
+    });
+
+    const hull = new THREE.Mesh(new THREE.CapsuleGeometry(1.1, 4, 6, 12), hullMaterial);
+    hull.rotation.z = Math.PI / 2;
+    ship.add(hull);
+
+    // Triebwerksdüse hinten, Spitze nach vorne
+    const nozzle = new THREE.Mesh(new THREE.ConeGeometry(0.9, 1.6, 12, 1, true), accentMaterial);
+    nozzle.rotation.z = -Math.PI / 2;
+    nozzle.position.x = -3.5;
+    ship.add(nozzle);
+
+    const panelGeometry = new THREE.BoxGeometry(2.2, 0.12, 5);
+    [-1, 1].forEach(side => {
+        const panel = new THREE.Mesh(panelGeometry, panelMaterial);
+        panel.position.set(-0.5, 0, side * 3.4);
+        ship.add(panel);
+    });
+
+    // Fangnetz: offener Kegel als Drahtgitter, Mündung nach +X
+    const net = new THREE.Mesh(new THREE.ConeGeometry(3.6, 6, 14, 5, true), netMaterial);
+    net.rotation.z = Math.PI / 2;
+    net.position.x = 5.4;
+    ship.add(net);
+
+    // Rand der Netzöffnung
+    const rim = new THREE.Mesh(new THREE.TorusGeometry(3.6, 0.14, 6, 24), accentMaterial);
+    rim.rotation.y = Math.PI / 2;
+    rim.position.x = 8.4;
+    ship.add(rim);
+
+    // Streben vom Rumpf zum Netzrand
+    const strutGeometry = new THREE.CylinderGeometry(0.08, 0.08, 6.4, 6);
+    for (let i = 0; i < 4; i++) {
+        const angle = (i / 4) * Math.PI * 2;
+        const strut = new THREE.Mesh(strutGeometry, hullMaterial);
+        strut.position.set(5.3, Math.cos(angle) * 1.9, Math.sin(angle) * 1.9);
+        strut.rotation.z = Math.PI / 2;
+        ship.add(strut);
+    }
+
+    return ship;
+};
+
+const addCollectorShip = () => {
+    if (!world.value) return;
+
+    const globeRadius = world.value.getGlobeRadius();
+    const orbitRadius = globeRadius * (1 + (collectorAltitudeKm / earthRadiusKm) * collectorAltitudeExaggeration);
+
+    // orbit kippt die Bahnebene, pivot dreht das Schiff darin herum
+    const orbit = new THREE.Group();
+    orbit.rotation.set(
+        THREE.MathUtils.degToRad(collectorInclinationDeg),
+        THREE.MathUtils.degToRad(collectorRaanDeg),
+        0
+    );
+
+    const pivot = new THREE.Group();
+    const ship = buildCollectorShip();
+    ship.position.set(orbitRadius, 0, 0);
+    // Bei Drehung um +Z geht die Bewegung an dieser Stelle nach +Y - Nase mitdrehen
+    ship.rotation.z = Math.PI / 2;
+    pivot.add(ship);
+    orbit.add(pivot);
+
+    collectorOrbit = pivot;
+    world.value.scene().add(orbit);
+
+    const step = () => {
+        if (!isRunning) return;
+        if (collectorOrbit) collectorOrbit.rotation.z += collectorOrbitSpeed;
+        requestAnimationFrame(step);
+    };
+    step();
 };
 
 // ------------------- Starlink-Kette (simuliert) -------------------

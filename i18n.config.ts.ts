@@ -31,7 +31,7 @@ export default defineI18nConfig(() => ({
         dataRealLabel: 'Echte Daten',
         dataRealText: 'Die Position der ISS kommt live von wheretheiss.at, die Satellitenbahnen aus einem TLE-Datensatz, die Personen im All von The Space Devs.',
         dataFakeLabel: 'Simuliert',
-        dataFakeText: 'Die Trümmerwolke und die Starlink-Kette laufen auf erfundenen Koordinaten und stehen nur symbolisch für die echte Lage.',
+        dataFakeText: 'Die Trümmerwolke, die Starlink-Kette und das Bergungsschiff mit Fangnetz laufen auf erfundenen Koordinaten und stehen nur symbolisch für die echte Lage.',
         dataScaleLabel: 'Überzeichnet',
         dataScaleText: 'Größen und Bahnhöhen sind stark vergrößert. Maßstabsgetreu wäre kein einziges Objekt sichtbar.'
       },
@@ -96,7 +96,7 @@ export default defineI18nConfig(() => ({
         dataRealLabel: 'Real data',
         dataRealText: 'The ISS position comes live from wheretheiss.at, the satellite orbits from a TLE data set, the people in space from The Space Devs.',
         dataFakeLabel: 'Simulated',
-        dataFakeText: 'The debris cloud and the Starlink chain run on made-up coordinates and only stand in symbolically for the real situation.',
+        dataFakeText: 'The debris cloud, the Starlink chain and the net-carrying collector craft run on made-up coordinates and only stand in symbolically for the real situation.',
         dataScaleLabel: 'Exaggerated',
         dataScaleText: 'Sizes and orbit altitudes are heavily scaled up. At true scale not a single object would be visible.'
       },
