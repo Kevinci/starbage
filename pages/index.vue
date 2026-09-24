@@ -1,6 +1,11 @@
 <template>
     <div>
         <div id="chart"></div>
+        <div
+            class="pointer-events-none fixed bottom-20 left-4 z-10 flex items-center gap-2 rounded-md bg-slate-800 bg-opacity-80 px-3 py-2 text-sm text-white max-sm:bottom-28">
+            <span class="h-2 w-2 animate-pulse rounded-full bg-[#E47F00]"></span>
+            {{ $t('collector.counter') }}: <span class="font-semibold tabular-nums">{{ collectedDebris }}</span>
+        </div>
         <Modal v-if="modalStore.showModal" @close-modal="modalStore.toggleModal(false)" />
         <DebrisModal v-if="modalStore.showDebrisModal" @close-modal="modalStore.toggleDebrisModal(false)" />
         <AboutModal v-if="modalStore.showAboutModal" @close-modal="modalStore.toggleAboutModal(false)" />
@@ -22,6 +27,8 @@ import Modal from '~/components/Modal.vue';
 
 const modalStore = useModalStore(); // Initialize Store
 const globeStore = useGlobeStore();
+const { collected: collectedDebris, start: startCollectorShip, follow: followCollectorShip } = useCollectorShip();
+const { start: startStarlinkConstellation, setVisible: setStarlinkVisible } = useStarlinkConstellation();
 const asset = useAssetPath();
 const satData = ref<SatelliteData[]>([]);
 const location = ref([]);
@@ -128,8 +135,19 @@ const initGlobe = () => {
 
     setupEnvironment();
     addSun();
-    addStarlinkChain();
-    addCollectorShip();
+    startStarlinkConstellation({
+        world: world.value,
+        earthRadiusKm,
+        visible: globeStore.showStarlink,
+        isRunning: () => isRunning
+    });
+    startCollectorShip({
+        world: world.value,
+        earthRadiusKm,
+        solarTextureUrl: asset('solarpanel.jpg'),
+        logoUrl: asset('logo.png'),
+        isRunning: () => isRunning
+    });
     addStars();
     addClouds();
     getUserPosition()
@@ -139,175 +157,6 @@ const initGlobe = () => {
     updateISSPosition();
     intervals.push(setInterval(updateISSPosition, 3500));
     animateISS();
-};
-
-// -------------- Bergungsschiff mit Fangnetz (simuliert) --------------
-// Erfundenes Raumschiff, das mit einem Netz Trümmer einsammelt - angelehnt an
-// Missionen wie ClearSpace-1. Eigene Bahnebene, keine echten Koordinaten.
-const collectorInclinationDeg = -28;
-const collectorRaanDeg = 115;
-const collectorAltitudeKm = 750;
-const collectorAltitudeExaggeration = 3.4;
-const collectorOrbitSpeed = 0.0022; // schneller als die Starlink-Kette
-
-let collectorOrbit: THREE.Group | null = null;
-
-// Nase des Schiffs zeigt in +X, das Netz öffnet sich nach vorne.
-const buildCollectorShip = () => {
-    const ship = new THREE.Group();
-
-    const hullMaterial = new THREE.MeshStandardMaterial({ color: '#e2e8f0', metalness: 0.6, roughness: 0.35 });
-    const accentMaterial = new THREE.MeshStandardMaterial({ color: '#E47F00', metalness: 0.4, roughness: 0.5 });
-    const panelMaterial = new THREE.MeshStandardMaterial({ color: '#1e3a8a', metalness: 0.3, roughness: 0.6 });
-    const netMaterial = new THREE.MeshBasicMaterial({
-        color: '#7dd3fc',
-        wireframe: true,
-        transparent: true,
-        opacity: 0.55
-    });
-
-    const hull = new THREE.Mesh(new THREE.CapsuleGeometry(1.1, 4, 6, 12), hullMaterial);
-    hull.rotation.z = Math.PI / 2;
-    ship.add(hull);
-
-    // Triebwerksdüse hinten, Spitze nach vorne
-    const nozzle = new THREE.Mesh(new THREE.ConeGeometry(0.9, 1.6, 12, 1, true), accentMaterial);
-    nozzle.rotation.z = -Math.PI / 2;
-    nozzle.position.x = -3.5;
-    ship.add(nozzle);
-
-    const panelGeometry = new THREE.BoxGeometry(2.2, 0.12, 5);
-    [-1, 1].forEach(side => {
-        const panel = new THREE.Mesh(panelGeometry, panelMaterial);
-        panel.position.set(-0.5, 0, side * 3.4);
-        ship.add(panel);
-    });
-
-    // Fangnetz: offener Kegel als Drahtgitter, Mündung nach +X
-    const net = new THREE.Mesh(new THREE.ConeGeometry(3.6, 6, 14, 5, true), netMaterial);
-    net.rotation.z = Math.PI / 2;
-    net.position.x = 5.4;
-    ship.add(net);
-
-    // Rand der Netzöffnung
-    const rim = new THREE.Mesh(new THREE.TorusGeometry(3.6, 0.14, 6, 24), accentMaterial);
-    rim.rotation.y = Math.PI / 2;
-    rim.position.x = 8.4;
-    ship.add(rim);
-
-    // Streben vom Rumpf zum Netzrand
-    const strutGeometry = new THREE.CylinderGeometry(0.08, 0.08, 6.4, 6);
-    for (let i = 0; i < 4; i++) {
-        const angle = (i / 4) * Math.PI * 2;
-        const strut = new THREE.Mesh(strutGeometry, hullMaterial);
-        strut.position.set(5.3, Math.cos(angle) * 1.9, Math.sin(angle) * 1.9);
-        strut.rotation.z = Math.PI / 2;
-        ship.add(strut);
-    }
-
-    return ship;
-};
-
-const addCollectorShip = () => {
-    if (!world.value) return;
-
-    const globeRadius = world.value.getGlobeRadius();
-    const orbitRadius = globeRadius * (1 + (collectorAltitudeKm / earthRadiusKm) * collectorAltitudeExaggeration);
-
-    // orbit kippt die Bahnebene, pivot dreht das Schiff darin herum
-    const orbit = new THREE.Group();
-    orbit.rotation.set(
-        THREE.MathUtils.degToRad(collectorInclinationDeg),
-        THREE.MathUtils.degToRad(collectorRaanDeg),
-        0
-    );
-
-    const pivot = new THREE.Group();
-    const ship = buildCollectorShip();
-    ship.position.set(orbitRadius, 0, 0);
-    // Bei Drehung um +Z geht die Bewegung an dieser Stelle nach +Y - Nase mitdrehen
-    ship.rotation.z = Math.PI / 2;
-    pivot.add(ship);
-    orbit.add(pivot);
-
-    collectorOrbit = pivot;
-    world.value.scene().add(orbit);
-
-    const step = () => {
-        if (!isRunning) return;
-        if (collectorOrbit) collectorOrbit.rotation.z += collectorOrbitSpeed;
-        requestAnimationFrame(step);
-    };
-    step();
-};
-
-// ------------------- Starlink-Kette (simuliert) -------------------
-// Erfundene Bahn, keine echten Koordinaten: eine geschlossene Kette in einer
-// geneigten Ebene, angelehnt an einen frisch ausgesetzten Starlink-Zug.
-const starlinkCount = 64;
-const starlinkInclinationDeg = 53; // typische Starlink-Neigung
-const starlinkRaanDeg = 25; // Lage der Bahnebene, frei gewählt
-const starlinkAltitudeKm = 550;
-const starlinkAltitudeExaggeration = 3; // sonst klebt die Kette am Globus
-const starlinkOrbitSpeed = 0.0009; // Radiant pro Frame
-
-let starlinkChain: THREE.Group | null = null;
-
-const addStarlinkChain = () => {
-    if (!world.value) return;
-
-    const globeRadius = world.value.getGlobeRadius();
-    const orbitRadius = globeRadius * (1 + (starlinkAltitudeKm / earthRadiusKm) * starlinkAltitudeExaggeration);
-
-    // orbit kippt die Bahnebene, chain dreht sich darin - das ist die Umlaufbewegung
-    const orbit = new THREE.Group();
-    orbit.rotation.set(
-        THREE.MathUtils.degToRad(starlinkInclinationDeg),
-        THREE.MathUtils.degToRad(starlinkRaanDeg),
-        0
-    );
-
-    const chain = new THREE.Group();
-    orbit.add(chain);
-
-    const satelliteGeometry = new THREE.BoxGeometry(3.2, 0.4, 1.1);
-    const starlinkMaterial = new THREE.MeshStandardMaterial({
-        color: '#e2e8f0',
-        emissive: '#60a5fa',
-        emissiveIntensity: 0.9,
-        metalness: 0.4,
-        roughness: 0.35
-    });
-
-    for (let i = 0; i < starlinkCount; i++) {
-        const angle = (i / starlinkCount) * Math.PI * 2;
-        const sat = new THREE.Mesh(satelliteGeometry, starlinkMaterial);
-        sat.position.set(Math.cos(angle) * orbitRadius, Math.sin(angle) * orbitRadius, 0);
-        sat.rotation.z = angle + Math.PI / 2; // Längsachse tangential zur Bahn
-        chain.add(sat);
-    }
-
-    // Dünne Bahnlinie, damit die Kette als Bahn lesbar bleibt
-    const trackSegments = 180;
-    const trackPoints: THREE.Vector3[] = [];
-    for (let i = 0; i <= trackSegments; i++) {
-        const angle = (i / trackSegments) * Math.PI * 2;
-        trackPoints.push(new THREE.Vector3(Math.cos(angle) * orbitRadius, Math.sin(angle) * orbitRadius, 0));
-    }
-    orbit.add(new THREE.Line(
-        new THREE.BufferGeometry().setFromPoints(trackPoints),
-        new THREE.LineBasicMaterial({ color: '#60a5fa', transparent: true, opacity: 0.2 })
-    ));
-
-    starlinkChain = chain;
-    world.value.scene().add(orbit);
-
-    const step = () => {
-        if (!isRunning) return;
-        if (starlinkChain) starlinkChain.rotation.z += starlinkOrbitSpeed;
-        requestAnimationFrame(step);
-    };
-    step();
 };
 
 // ----------------------------- Sonne -----------------------------
@@ -836,8 +685,11 @@ const updateISSPosition = () => {
                 issPivot.visible = true;
                 issHasFix = true;
 
-                // Näher als knapp unter die ISS soll die Kamera nicht heran
-                world.value.controls().minDistance = issTargetPosition.length() * zoomFloorFactor;
+                // Näher als knapp unter die ISS soll die Kamera nicht heran - außer
+                // beim Mitfliegen mit dem Schiff, das setzt seine eigene Grenze
+                if (!globeStore.followShip) {
+                    world.value.controls().minDistance = issTargetPosition.length() * zoomFloorFactor;
+                }
             }
         })
         .catch(error => {
@@ -889,19 +741,31 @@ const animateISS = () => {
     step();
 };
 
+// Muss vor dem ISS-Watcher stehen: beim Wechsel Schiff -> ISS erst die Kamera
+// vom Schiff lösen, dann fliegt die ISS-Ansicht los
+watch(() => globeStore.followShip, following => {
+    if (!world.value) return;
+
+    world.value.controls().autoRotate = !(following || globeStore.followISS);
+    followCollectorShip(following, !globeStore.followISS);
+});
+
 watch(() => globeStore.followISS, following => {
     if (!world.value) return;
 
-    world.value.controls().autoRotate = !following;
+    world.value.controls().autoRotate = !(following || globeStore.followShip);
 
     if (following) {
         followFlightPending = true;
         startFollowFlight();
     } else {
         followFlightPending = false;
-        world.value.pointOfView({ altitude: 2.5 }, followTransitionMs);
+        // Übernimmt gerade das Schiff die Kamera, nicht dazwischen zurückzoomen
+        if (!globeStore.followShip) world.value.pointOfView({ altitude: 2.5 }, followTransitionMs);
     }
 });
+
+watch(() => globeStore.showStarlink, visible => setStarlinkVisible(visible));
 
 watch(() => globeStore.showSatellites, visible => {
     if (satelliteMaterial) satelliteMaterial.visible = visible;

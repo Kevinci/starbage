@@ -5,10 +5,12 @@ export default defineI18nConfig(() => ({
     de: {
       welcome: 'Willkommen',
       spacedebris: 'Weltraumschrott anzeigen',
-      satellites: 'Satelliten anzeigen',
       datasource: 'Daten von',
       close: 'Schließen',
       aboutFooter: 'Starbage ist ein fiktives Projekt.',
+      collector: {
+        counter: 'Schrott eingesammelt'
+      },
       crew: {
         button: 'ISS Information',
         title: 'Menschen im All',
@@ -31,7 +33,7 @@ export default defineI18nConfig(() => ({
         dataRealLabel: 'Echte Daten',
         dataRealText: 'Die Position der ISS kommt live von wheretheiss.at, die Satellitenbahnen aus einem TLE-Datensatz, die Personen im All von The Space Devs. Tag- und Nachtseite sowie die Richtung, in der die Sonne steht, entsprechen dem tatsächlichen Sonnenstand zur aktuellen Uhrzeit.',
         dataFakeLabel: 'Simuliert',
-        dataFakeText: 'Die Trümmerwolke, die Starlink-Kette und das Bergungsschiff mit Fangnetz laufen auf erfundenen Koordinaten und stehen nur symbolisch für die echte Lage.',
+        dataFakeText: 'Die Trümmerwolke, die Starlink-Konstellation und das Bergungsschiff mit Fangnetz laufen auf erfundenen Koordinaten und stehen nur symbolisch für die echte Lage.',
         dataScaleLabel: 'Überzeichnet',
         dataScaleText: 'Größen und Bahnhöhen sind stark vergrößert, ebenso Größe und Abstand der Sonne. Maßstabsgetreu wäre kein einziges Objekt sichtbar.'
       },
@@ -64,16 +66,26 @@ export default defineI18nConfig(() => ({
         source: 'Zahlen: Schätzungen des ESA Space Debris Office, Stand 2025.',
         sourceLink: 'ESA: Space debris by the numbers'
       },
-      issFollow: 'Zur ISS zoomen',
-      issUnfollow: 'ISS-Ansicht verlassen'
+      nav: {
+        info: 'Informationen',
+        view: 'Anzeigen',
+        satellites: 'Satelliten',
+        starlink: 'Starlink-Konstellation',
+        camera: 'Kamera',
+        cameraGlobe: 'Ganzer Globus',
+        cameraIss: 'ISS folgen',
+        cameraShip: 'Mit Abfangschiff fliegen'
+      }
     },
     en: {
       welcome: 'Welcome',
       spacedebris: 'View Space Debris',
-      satellites: 'Show Satellites',
       datasource: 'Data by',
       close: 'Close',
       aboutFooter: 'Starbage is a fictional project.',
+      collector: {
+        counter: 'Debris collected'
+      },
       crew: {
         button: 'ISS Information',
         title: 'People in space',
@@ -96,7 +108,7 @@ export default defineI18nConfig(() => ({
         dataRealLabel: 'Real data',
         dataRealText: 'The ISS position comes live from wheretheiss.at, the satellite orbits from a TLE data set, the people in space from The Space Devs. Day and night side, and the direction the sun sits in, match the actual position of the sun right now.',
         dataFakeLabel: 'Simulated',
-        dataFakeText: 'The debris cloud, the Starlink chain and the net-carrying collector craft run on made-up coordinates and only stand in symbolically for the real situation.',
+        dataFakeText: 'The debris cloud, the Starlink constellation and the net-carrying collector craft run on made-up coordinates and only stand in symbolically for the real situation.',
         dataScaleLabel: 'Exaggerated',
         dataScaleText: 'Sizes and orbit altitudes are heavily scaled up, as are the size and distance of the sun. At true scale not a single object would be visible.'
       },
@@ -129,8 +141,16 @@ export default defineI18nConfig(() => ({
         source: 'Figures: estimates by the ESA Space Debris Office, as of 2025.',
         sourceLink: 'ESA: Space debris by the numbers'
       },
-      issFollow: 'Zoom to the ISS',
-      issUnfollow: 'Leave ISS view'
+      nav: {
+        info: 'Information',
+        view: 'Show',
+        satellites: 'Satellites',
+        starlink: 'Starlink constellation',
+        camera: 'Camera',
+        cameraGlobe: 'Whole globe',
+        cameraIss: 'Follow the ISS',
+        cameraShip: 'Fly with the interceptor'
+      }
     }
   }
 }))
