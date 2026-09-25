@@ -6,6 +6,13 @@
             <span class="h-2 w-2 animate-pulse rounded-full bg-[#E47F00]"></span>
             {{ $t('collector.counter') }}: <span class="font-semibold tabular-nums">{{ collectedDebris }}</span>
         </div>
+        <Transition enter-from-class="opacity-0" leave-to-class="opacity-0"
+            enter-active-class="transition-opacity duration-500" leave-active-class="transition-opacity duration-1000">
+            <div v-if="showSteerHint"
+                class="pointer-events-none fixed bottom-20 left-1/2 z-10 -translate-x-1/2 rounded-md bg-slate-900/85 px-4 py-2 text-sm text-slate-100 shadow-lg max-sm:bottom-40">
+                {{ $t('collector.steerHint') }}
+            </div>
+        </Transition>
         <Modal v-if="modalStore.showModal" @close-modal="modalStore.toggleModal(false)" />
         <DebrisModal v-if="modalStore.showDebrisModal" @close-modal="modalStore.toggleDebrisModal(false)" />
         <AboutModal v-if="modalStore.showAboutModal" @close-modal="modalStore.toggleAboutModal(false)" />
@@ -27,7 +34,12 @@ import Modal from '~/components/Modal.vue';
 
 const modalStore = useModalStore(); // Initialize Store
 const globeStore = useGlobeStore();
-const { collected: collectedDebris, start: startCollectorShip, follow: followCollectorShip } = useCollectorShip();
+const {
+    collected: collectedDebris,
+    start: startCollectorShip,
+    setCameraMode: setShipCameraMode,
+    steer: steerCollectorShip
+} = useCollectorShip();
 const { start: startStarlinkConstellation, setVisible: setStarlinkVisible } = useStarlinkConstellation();
 const asset = useAssetPath();
 const satData = ref<SatelliteData[]>([]);
@@ -687,7 +699,7 @@ const updateISSPosition = () => {
 
                 // Näher als knapp unter die ISS soll die Kamera nicht heran - außer
                 // beim Mitfliegen mit dem Schiff, das setzt seine eigene Grenze
-                if (!globeStore.followShip) {
+                if (globeStore.shipCameraMode === 'off') {
                     world.value.controls().minDistance = issTargetPosition.length() * zoomFloorFactor;
                 }
             }
@@ -743,17 +755,18 @@ const animateISS = () => {
 
 // Muss vor dem ISS-Watcher stehen: beim Wechsel Schiff -> ISS erst die Kamera
 // vom Schiff lösen, dann fliegt die ISS-Ansicht los
-watch(() => globeStore.followShip, following => {
+watch(() => globeStore.shipCameraMode, mode => {
     if (!world.value) return;
 
-    world.value.controls().autoRotate = !(following || globeStore.followISS);
-    followCollectorShip(following, !globeStore.followISS);
+    world.value.controls().autoRotate = mode === 'off' && !globeStore.followISS;
+    setShipCameraMode(mode, !globeStore.followISS);
+    if (mode !== 'steer') releaseSteerKeys();
 });
 
 watch(() => globeStore.followISS, following => {
     if (!world.value) return;
 
-    world.value.controls().autoRotate = !(following || globeStore.followShip);
+    world.value.controls().autoRotate = !following && globeStore.shipCameraMode === 'off';
 
     if (following) {
         followFlightPending = true;
@@ -761,7 +774,7 @@ watch(() => globeStore.followISS, following => {
     } else {
         followFlightPending = false;
         // Übernimmt gerade das Schiff die Kamera, nicht dazwischen zurückzoomen
-        if (!globeStore.followShip) world.value.pointOfView({ altitude: 2.5 }, followTransitionMs);
+        if (globeStore.shipCameraMode === 'off') world.value.pointOfView({ altitude: 2.5 }, followTransitionMs);
     }
 });
 
@@ -869,17 +882,71 @@ const addMoon = () => {
     animate();
 };
 
+// ------------------- Spielmodus: Tastatur -------------------
+const steerKeys = {
+    left: ['a', 'arrowleft'],
+    right: ['d', 'arrowright'],
+    up: ['w', 'arrowup'],
+    down: ['s', 'arrowdown']
+};
+const allSteerKeys = Object.values(steerKeys).flat();
+const pressedKeys = new Set<string>();
+const showSteerHint = ref(false);
+let steerHintTimer: ReturnType<typeof setTimeout> | undefined;
+
+const updateSteerInput = () => {
+    const held = (keys: string[]) => (keys.some(key => pressedKeys.has(key)) ? 1 : 0);
+    steerCollectorShip(held(steerKeys.right) - held(steerKeys.left), held(steerKeys.up) - held(steerKeys.down));
+};
+
+const releaseSteerKeys = () => {
+    pressedKeys.clear();
+    updateSteerInput();
+};
+
+const onSteerKeyDown = (event: KeyboardEvent) => {
+    if (!globeStore.steerShip) return;
+    const key = event.key.toLowerCase();
+    if (key === 'escape') {
+        globeStore.toggleSteerShip(false);
+        return;
+    }
+    if (!allSteerKeys.includes(key)) return;
+    event.preventDefault(); // Pfeiltasten sollen nicht scrollen
+    pressedKeys.add(key);
+    updateSteerInput();
+};
+
+const onSteerKeyUp = (event: KeyboardEvent) => {
+    if (!pressedKeys.delete(event.key.toLowerCase())) return;
+    updateSteerInput();
+};
+
+// Hinweis zur Steuerung kurz einblenden, sobald der Spielmodus startet
+watch(() => globeStore.steerShip, steering => {
+    clearTimeout(steerHintTimer);
+    showSteerHint.value = steering;
+    if (steering) steerHintTimer = setTimeout(() => { showSteerHint.value = false; }, 6000);
+});
+
 onMounted(() => {
     isRunning = true;
     initGlobe()
     fetchSatelliteData()
     startFrameTicker()
     getSpaceDebris()
+    window.addEventListener('keydown', onSteerKeyDown);
+    window.addEventListener('keyup', onSteerKeyUp);
+    window.addEventListener('blur', releaseSteerKeys); // sonst "klemmt" eine Taste nach Fensterwechsel
 });
 
 onUnmounted(() => {
     isRunning = false;
     intervals.forEach(clearInterval);
     intervals.length = 0;
+    clearTimeout(steerHintTimer);
+    window.removeEventListener('keydown', onSteerKeyDown);
+    window.removeEventListener('keyup', onSteerKeyUp);
+    window.removeEventListener('blur', releaseSteerKeys);
 });
 </script>

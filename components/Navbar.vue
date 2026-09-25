@@ -104,12 +104,16 @@ const groups = computed<MenuGroup[]>(() => [
     {
         key: 'camera',
         label: t('nav.camera'),
-        highlight: globeStore.followISS || globeStore.followShip,
+        highlight: globeStore.followISS || globeStore.followShip || globeStore.steerShip,
         items: [
             {
                 key: 'camera-globe', kind: 'choice', label: t('nav.cameraGlobe'),
-                active: !globeStore.followISS && !globeStore.followShip,
-                onClick: () => { globeStore.toggleFollowISS(false); globeStore.toggleFollowShip(false); },
+                active: !globeStore.followISS && !globeStore.followShip && !globeStore.steerShip,
+                onClick: () => {
+                    globeStore.toggleFollowISS(false);
+                    globeStore.toggleFollowShip(false);
+                    globeStore.toggleSteerShip(false);
+                },
             },
             {
                 key: 'camera-iss', kind: 'choice', label: t('nav.cameraIss'),
@@ -118,6 +122,10 @@ const groups = computed<MenuGroup[]>(() => [
             {
                 key: 'camera-ship', kind: 'choice', label: t('nav.cameraShip'),
                 active: globeStore.followShip, onClick: () => globeStore.toggleFollowShip(true),
+            },
+            {
+                key: 'camera-steer', kind: 'choice', label: t('nav.cameraSteer'),
+                active: globeStore.steerShip, onClick: () => globeStore.toggleSteerShip(true),
             },
         ],
     },

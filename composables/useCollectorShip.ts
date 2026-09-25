@@ -7,6 +7,9 @@ import { createCollectorSurfaces, withRepeat, type CollectorSurfaces, type Surfa
  * geneigten Bahn, auf der Trümmerteile treiben. Kommt das Schiff einem Teil nahe,
  * wird es ins Fangnetz gezogen und gezählt. Später taucht an anderer Stelle der
  * Bahn neuer Schrott auf, damit die Bahn nie leer wird.
+ *
+ * Im Spielmodus lenkt der Nutzer das Schiff innerhalb eines Korridors um die
+ * Bahn (links/rechts, hoch/runter), der Schrott ist über diesen Korridor verteilt.
  */
 
 interface CollectorShipOptions {
@@ -17,7 +20,7 @@ interface CollectorShipOptions {
     isRunning: () => boolean;
 }
 
-type DebrisPhase = 'drifting' | 'capturing' | 'gone' | 'spawning';
+type DebrisPhase = 'drifting' | 'capturing' | 'gone' | 'spawning' | 'parked';
 
 interface DebrisPiece {
     object: THREE.Object3D;
@@ -30,6 +33,7 @@ interface DebrisPiece {
     phase: DebrisPhase;
     timer: number;
     captureStart: THREE.Vector3;
+    gameOnly: boolean; // nur im Spielmodus unterwegs, sonst geparkt und unsichtbar
 }
 
 const inclinationDeg = -28;
@@ -38,6 +42,7 @@ const altitudeKm = 750;
 const altitudeExaggeration = 3.4;
 const shipOrbitSpeed = 0.1; // rad/s, eine Runde in gut einer Minute
 const debrisCount = 40;
+const gameDebrisCount = 50; // der Korridor ist breit - ohne Zusatzteile wäre er zu leer
 const captureRadius = 5; // Abstand zur Netzöffnung, ab dem ein Teil eingefangen wird
 const captureDuration = 0.9; // s
 const respawnDelay = [4, 9]; // s
@@ -51,6 +56,24 @@ const followFlightDuration = 1.8; // s
 const followMinDistance = 12;
 const followMaxDistance = 160;
 const globeViewTransitionMs = 1400;
+
+// Spielmodus: Korridor um die Bahn, in dem Schrott liegt und das Schiff lenkt.
+// Quer zur Bahn ist Schiff-Z, radial ist Schiff-Y (+Y zur Erde).
+const corridorHalfWidth = 14;
+const corridorHalfHeight = 7;
+const autoOffsetRange = 2; // ohne Spielmodus liegt der Schrott knapp um die Bahnlinie
+const steerMaxSpeed = 16; // Einheiten/s
+const steerResponse = 4; // wie schnell das Schiff auf die Tasten reagiert
+const steerReturn = 1.5; // ohne Spielmodus gleitet das Schiff zurück zur Bahnmitte
+const steerCaptureRadius = 4.2; // enger als im Automatikbetrieb - man muss wirklich treffen
+const steerCameraLag = 3;
+// Verfolgerkamera hinter und über dem Schiff, damit links/rechts auch auf dem Bildschirm stimmen
+// Erhöht und leicht nach unten geneigt, damit die Erde unten im Bild liegt
+const steerCameraOffset = new THREE.Vector3(-26, -16, 0);
+const steerLookAt = new THREE.Vector3(12, 5, 0);
+const shipUpLocal = new THREE.Vector3(0, -1, 0);
+
+export type CollectorCameraMode = 'off' | 'follow' | 'steer';
 
 // In Schiffskoordinaten: Nase zeigt in +X, die Netzöffnung liegt vorne
 const netMouth = new THREE.Vector3(16.5, 0, 0);
@@ -455,35 +478,62 @@ export const useCollectorShip = () => {
 
     let globe: GlobeInstance | null = null;
     let shipObject: THREE.Object3D | null = null;
+    let cameraRig: THREE.Object3D | null = null; // folgt dem Schiff im Spielmodus leicht verzögert
+    let cameraMode: CollectorCameraMode = 'off';
     let followState: 'off' | 'flying' | 'on' = 'off';
     let flightProgress = 0;
     let savedDistances = { min: 0, max: 0 };
-    const flightStartCamera = new THREE.Vector3(); // Schiffskoordinaten
+    const flightStartCamera = new THREE.Vector3(); // Koordinaten des Kamera-Ankers
     const flightStartTarget = new THREE.Vector3(); // Weltkoordinaten
+    const flightStartUp = new THREE.Vector3();
     const cameraLocal = new THREE.Vector3();
+    const steerInput = { x: 0, y: 0 }; // x: +1 rechts, y: +1 hoch (Bildschirm)
+    let redistributeDebris: (() => void) | null = null;
+
+    const cameraAnchor = () => (cameraMode === 'steer' ? cameraRig : shipObject);
 
     // Ohne returnToGlobe bleibt die Kamera stehen, z. B. weil gleich die ISS übernimmt
-    const follow = (on: boolean, returnToGlobe = true) => {
-        if (!globe || !shipObject) return;
+    const setCameraMode = (mode: CollectorCameraMode, returnToGlobe = true) => {
+        if (!globe || !shipObject || mode === cameraMode) return;
         const controls = globe.controls();
+        const camera = globe.camera();
+        const previous = cameraMode;
+        cameraMode = mode;
 
-        if (on) {
-            if (followState !== 'off') return;
-            savedDistances = { min: controls.minDistance, max: controls.maxDistance };
-            shipObject.updateMatrixWorld();
-            flightStartCamera.copy(shipObject.worldToLocal(globe.camera().position.clone()));
-            flightStartTarget.copy(controls.target);
-            flightProgress = 0;
-            followState = 'flying';
+        // Schrott in den Korridor verteilen bzw. wieder an die Bahnlinie holen
+        if (previous === 'steer' || mode === 'steer') redistributeDebris?.();
+
+        if (mode === 'off') {
+            followState = 'off';
+            steerInput.x = 0;
+            steerInput.y = 0;
+            controls.enabled = true;
+            controls.target.set(0, 0, 0);
+            controls.minDistance = savedDistances.min;
+            controls.maxDistance = savedDistances.max;
+            camera.up.set(0, 1, 0);
+            if (returnToGlobe) globe.pointOfView({ altitude: 2.5 }, globeViewTransitionMs);
             return;
         }
 
-        if (followState === 'off') return;
-        followState = 'off';
-        controls.target.set(0, 0, 0);
-        controls.minDistance = savedDistances.min;
-        controls.maxDistance = savedDistances.max;
-        if (returnToGlobe) globe.pointOfView({ altitude: 2.5 }, globeViewTransitionMs);
+        if (previous === 'off') savedDistances = { min: controls.minDistance, max: controls.maxDistance };
+        // Im Spielmodus führt nur die Tastatur - Maus-Drehen würde die Verfolgerkamera stören
+        controls.enabled = mode !== 'steer';
+
+        const anchor = cameraAnchor()!;
+        anchor.updateMatrixWorld();
+        flightStartCamera.copy(anchor.worldToLocal(camera.position.clone()));
+        flightStartTarget.copy(controls.target);
+        flightStartUp.copy(camera.up);
+        flightProgress = 0;
+        followState = 'flying';
+    };
+
+    const follow = (on: boolean, returnToGlobe = true) => setCameraMode(on ? 'follow' : 'off', returnToGlobe);
+
+    const steer = (x: number, y: number) => {
+        steerInput.x = x;
+        steerInput.y = y;
     };
 
     const start = ({ world, earthRadiusKm, solarTextureUrl, logoUrl, isRunning }: CollectorShipOptions) => {
@@ -504,11 +554,34 @@ export const useCollectorShip = () => {
         const pivot = new THREE.Group();
         const parts = buildShip(surfaces, solarTexture, glowTexture, createLogoDecalTexture(logoUrl));
         parts.ship.position.set(orbitRadius, 0, 0);
-        // Bei Drehung um +Z geht die Bewegung an dieser Stelle nach +Y - Nase mitdrehen
+        // Bei Drehung um +Z geht die Bewegung an dieser Stelle nach +Y - Nase mitdrehen.
+        // ZYX: erst Rollen um die eigene Längsachse, dann Nicken/Grunddrehung um Z
+        parts.ship.rotation.order = 'ZYX';
         parts.ship.rotation.z = Math.PI / 2;
         pivot.add(parts.ship);
-        orbit.add(pivot);
         shipObject = parts.ship;
+
+        const rig = new THREE.Object3D();
+        rig.position.copy(parts.ship.position);
+        rig.rotation.z = Math.PI / 2;
+        pivot.add(rig);
+        cameraRig = rig;
+        orbit.add(pivot);
+
+        // Korridor-Kanten als schwache Leitlinien, nur im Spielmodus sichtbar
+        const corridorMaterial = new THREE.LineBasicMaterial({ color: '#67e8f9', transparent: true, opacity: 0.16 });
+        const corridor = new THREE.Group();
+        [[-1, -1], [-1, 1], [1, -1], [1, 1]].forEach(([lateral, radial]) => {
+            const radius = orbitRadius + radial * corridorHalfHeight;
+            const points: THREE.Vector3[] = [];
+            for (let i = 0; i <= 360; i++) {
+                const angle = (i / 360) * Math.PI * 2;
+                points.push(new THREE.Vector3(Math.cos(angle) * radius, Math.sin(angle) * radius, lateral * corridorHalfWidth));
+            }
+            corridor.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(points), corridorMaterial));
+        });
+        corridor.visible = false;
+        orbit.add(corridor);
 
         // Dünne Bahnlinie, damit man sieht, wo das Schiff als Nächstes aufräumt
         const trackPoints: THREE.Vector3[] = [];
@@ -535,12 +608,20 @@ export const useCollectorShip = () => {
             );
         };
 
+        // Ohne Spielmodus klein genug, dass das Teil durch die Netzöffnung passt,
+        // im Spielmodus über den ganzen Korridor verteilt
+        const rollOffsets = (piece: DebrisPiece) => {
+            const steering = cameraMode === 'steer';
+            const width = steering ? corridorHalfWidth : autoOffsetRange;
+            const height = steering ? corridorHalfHeight : autoOffsetRange;
+            piece.radialOffset = randomBetween(-height, height);
+            piece.lateralOffset = randomBetween(-width, width);
+        };
+
         const resetPiece = (piece: DebrisPiece, angle: number) => {
             piece.angle = angle;
             piece.angularSpeed = randomBetween(0.004, 0.02);
-            // Versatz klein genug, dass das Teil noch durch die Netzöffnung passt
-            piece.radialOffset = randomBetween(-2, 2);
-            piece.lateralOffset = randomBetween(-2, 2);
+            rollOffsets(piece);
             piece.spin.set(randomBetween(-1, 1), randomBetween(-1, 1), randomBetween(-1, 1));
             piece.materials.forEach(material => {
                 material.emissive.copy(debrisTint);
@@ -550,7 +631,7 @@ export const useCollectorShip = () => {
         };
 
         const debris: DebrisPiece[] = [];
-        for (let i = 0; i < debrisCount; i++) {
+        for (let i = 0; i < debrisCount + gameDebrisCount; i++) {
             const { object, materials } = buildDebris(i % 4, surfaces, solarTexture);
             object.rotation.set(randomBetween(0, Math.PI), randomBetween(0, Math.PI), 0);
             const piece: DebrisPiece = {
@@ -563,15 +644,87 @@ export const useCollectorShip = () => {
                 spin: new THREE.Vector3(),
                 phase: 'drifting',
                 timer: 0,
-                captureStart: new THREE.Vector3()
+                captureStart: new THREE.Vector3(),
+                gameOnly: i >= debrisCount
             };
             // Nicht direkt vor dem Netz starten
             resetPiece(piece, 0.3 + (i / debrisCount) * (Math.PI * 2 - 0.4) + randomBetween(-0.05, 0.05));
+            if (piece.gameOnly) {
+                piece.phase = 'parked';
+                object.visible = false;
+            }
             orbit.add(object);
             debris.push(piece);
         }
 
         scene.add(orbit);
+
+        // Beim Wechsel in den oder aus dem Spielmodus nur Teile umsetzen, die gerade
+        // weit weg sind - sonst springt Schrott sichtbar vor dem Netz herum
+        redistributeDebris = () => {
+            const steering = cameraMode === 'steer';
+            debris.forEach(piece => {
+                // Zusatzteile: im Spiel irgendwo auf der Bahn einblenden, danach wieder parken
+                if (piece.gameOnly) {
+                    if (steering && piece.phase === 'parked') {
+                        resetPiece(piece, pivot.rotation.z + randomBetween(0.6, Math.PI * 2 - 0.3));
+                        piece.object.scale.setScalar(0);
+                        piece.object.visible = true;
+                        piece.phase = 'spawning';
+                        piece.timer = 0;
+                    } else if (!steering && piece.phase !== 'capturing') {
+                        piece.phase = 'parked';
+                        piece.object.visible = false;
+                    }
+                    return;
+                }
+                if (piece.phase !== 'drifting' && piece.phase !== 'spawning') return;
+                const ahead = THREE.MathUtils.euclideanModulo(piece.angle - pivot.rotation.z, Math.PI * 2);
+                if (ahead > 0.6 && ahead < Math.PI * 2 - 0.3) rollOffsets(piece);
+            });
+        };
+
+        // Lage des Schiffs im Korridor: seitlich (Schiff-Z) und radial (nach außen positiv)
+        const steerOffset = { lateral: 0, radial: 0 };
+        const steerVelocity = { lateral: 0, radial: 0 };
+        const cameraOffset = { lateral: 0, radial: 0 };
+
+        const updateSteering = (dt: number) => {
+            const steering = cameraMode === 'steer';
+            // Bildschirm rechts ist Schiff -Z (Kamera schaut nach +X, oben ist -Y)
+            const targetVelocity = steering
+                ? { lateral: -steerInput.x * steerMaxSpeed, radial: steerInput.y * steerMaxSpeed }
+                : {
+                    lateral: THREE.MathUtils.clamp(-steerOffset.lateral * steerReturn, -steerMaxSpeed, steerMaxSpeed),
+                    radial: THREE.MathUtils.clamp(-steerOffset.radial * steerReturn, -steerMaxSpeed, steerMaxSpeed)
+                };
+            const blend = Math.min(1, dt * steerResponse);
+            steerVelocity.lateral += (targetVelocity.lateral - steerVelocity.lateral) * blend;
+            steerVelocity.radial += (targetVelocity.radial - steerVelocity.radial) * blend;
+
+            steerOffset.lateral += steerVelocity.lateral * dt;
+            steerOffset.radial += steerVelocity.radial * dt;
+            if (Math.abs(steerOffset.lateral) > corridorHalfWidth) {
+                steerOffset.lateral = Math.sign(steerOffset.lateral) * corridorHalfWidth;
+                steerVelocity.lateral = 0;
+            }
+            if (Math.abs(steerOffset.radial) > corridorHalfHeight) {
+                steerOffset.radial = Math.sign(steerOffset.radial) * corridorHalfHeight;
+                steerVelocity.radial = 0;
+            }
+
+            parts.ship.position.set(orbitRadius + steerOffset.radial, 0, steerOffset.lateral);
+            // In die Kurve legen und beim Steigen/Sinken die Nase heben bzw. senken
+            parts.ship.rotation.x = -(steerVelocity.lateral / steerMaxSpeed) * 0.45;
+            parts.ship.rotation.z = Math.PI / 2 - (steerVelocity.radial / steerMaxSpeed) * 0.2;
+
+            const lag = Math.min(1, dt * steerCameraLag);
+            cameraOffset.lateral += (steerOffset.lateral - cameraOffset.lateral) * lag;
+            cameraOffset.radial += (steerOffset.radial - cameraOffset.radial) * lag;
+            rig.position.set(orbitRadius + cameraOffset.radial, 0, cameraOffset.lateral);
+
+            corridor.visible = steering;
+        };
 
         const mouth = new THREE.Vector3();
         const inside = new THREE.Vector3();
@@ -592,29 +745,40 @@ export const useCollectorShip = () => {
             // Kameralage relativ zum Schiff merken, bevor es weiterfliegt - so
             // bleiben Drehen und Zoomen des Nutzers beim Mitfliegen erhalten
             const camera = world.camera();
-            if (followState === 'on') cameraLocal.copy(parts.ship.worldToLocal(camera.position.clone()));
+            const steering = cameraMode === 'steer';
+            if (followState === 'on' && !steering) cameraLocal.copy(parts.ship.worldToLocal(camera.position.clone()));
 
+            updateSteering(dt);
             pivot.rotation.z = (pivot.rotation.z + shipOrbitSpeed * dt) % (Math.PI * 2);
             orbit.updateMatrixWorld();
 
             if (followState !== 'off') {
                 const controls = world.controls();
-                const target = parts.ship.localToWorld(followLookAt.clone());
+                const anchor = steering ? rig : parts.ship;
+                const offset = steering ? steerCameraOffset : followOffset;
+                const target = anchor.localToWorld((steering ? steerLookAt : followLookAt).clone());
+                // Im Spielmodus zeigt "oben" im Bild von der Erde weg, sonst bleibt es beim Globus-Oben
+                const up = steering
+                    ? shipUpLocal.clone().transformDirection(anchor.matrixWorld)
+                    : new THREE.Vector3(0, 1, 0);
+                if (followState === 'on' && steering) cameraLocal.copy(offset);
 
                 if (followState === 'flying') {
                     flightProgress = Math.min(1, flightProgress + dt / followFlightDuration);
                     const eased = easeInOut(flightProgress);
-                    cameraLocal.copy(flightStartCamera).lerp(followOffset, eased);
+                    cameraLocal.copy(flightStartCamera).lerp(offset, eased);
                     target.copy(flightStartTarget.clone().lerp(target, eased));
+                    up.copy(flightStartUp.clone().lerp(up, eased).normalize());
                     if (flightProgress >= 1) {
                         followState = 'on';
-                        controls.maxDistance = followMaxDistance;
+                        if (!steering) controls.maxDistance = followMaxDistance;
                     }
                 }
 
                 controls.minDistance = followMinDistance;
                 controls.target.copy(target);
-                camera.position.copy(parts.ship.localToWorld(cameraLocal.clone()));
+                camera.up.copy(up);
+                camera.position.copy(anchor.localToWorld(cameraLocal.clone()));
                 camera.lookAt(target);
             }
             toOrbitLocal(netMouth, mouth);
@@ -624,6 +788,8 @@ export const useCollectorShip = () => {
 
             debris.forEach(piece => {
                 const { object } = piece;
+
+                if (piece.phase === 'parked') return;
 
                 if (piece.phase === 'drifting' || piece.phase === 'spawning') {
                     piece.angle += piece.angularSpeed * dt;
@@ -639,7 +805,7 @@ export const useCollectorShip = () => {
                         if (t >= 1) piece.phase = 'drifting';
                     }
 
-                    if (object.position.distanceTo(mouth) < captureRadius) {
+                    if (object.position.distanceTo(mouth) < (steering ? steerCaptureRadius : captureRadius)) {
                         piece.phase = 'capturing';
                         piece.timer = 0;
                         piece.captureStart.copy(object.position);
@@ -670,7 +836,9 @@ export const useCollectorShip = () => {
                     }
                 } else {
                     piece.timer -= dt;
-                    if (piece.timer <= 0) {
+                    if (piece.timer <= 0 && piece.gameOnly && !steering) {
+                        piece.phase = 'parked';
+                    } else if (piece.timer <= 0) {
                         // Irgendwo vor dem Schiff wieder auftauchen, aber nicht direkt vor dem Netz
                         resetPiece(piece, pivot.rotation.z + randomBetween(0.8, Math.PI * 2 - 0.4));
                         object.scale.setScalar(0);
@@ -717,5 +885,5 @@ export const useCollectorShip = () => {
         step();
     };
 
-    return { collected, start, follow };
+    return { collected, start, follow, setCameraMode, steer };
 };

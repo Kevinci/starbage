@@ -9,7 +9,8 @@ export default defineI18nConfig(() => ({
       close: 'Schließen',
       aboutFooter: 'Starbage ist ein fiktives Projekt.',
       collector: {
-        counter: 'Schrott eingesammelt'
+        counter: 'Schrott eingesammelt',
+        steerHint: 'WASD oder Pfeiltasten zum Lenken · Esc beendet'
       },
       crew: {
         button: 'ISS Information',
@@ -74,7 +75,8 @@ export default defineI18nConfig(() => ({
         camera: 'Kamera',
         cameraGlobe: 'Ganzer Globus',
         cameraIss: 'ISS folgen',
-        cameraShip: 'Mit Abfangschiff fliegen'
+        cameraShip: 'Mit Abfangschiff fliegen',
+        cameraSteer: 'Selbst steuern (Spiel)'
       }
     },
     en: {
@@ -84,7 +86,8 @@ export default defineI18nConfig(() => ({
       close: 'Close',
       aboutFooter: 'Starbage is a fictional project.',
       collector: {
-        counter: 'Debris collected'
+        counter: 'Debris collected',
+        steerHint: 'WASD or arrow keys to steer · Esc to exit'
       },
       crew: {
         button: 'ISS Information',
@@ -149,7 +152,8 @@ export default defineI18nConfig(() => ({
         camera: 'Camera',
         cameraGlobe: 'Whole globe',
         cameraIss: 'Follow the ISS',
-        cameraShip: 'Fly with the interceptor'
+        cameraShip: 'Fly with the interceptor',
+        cameraSteer: 'Steer it yourself (game)'
       }
     }
   }

@@ -7,12 +7,18 @@ Texturen in `composables/collectorTextures.ts`.
 ## Schnittstelle
 
 ```ts
-const { collected, start, follow } = useCollectorShip();
+const { collected, start, follow, setCameraMode, steer } = useCollectorShip();
 
 start({ world, earthRadiusKm, solarTextureUrl, logoUrl, isRunning: () => isRunning });
-follow(true);                // Kamera fliegt zum Schiff und bleibt dran
-follow(false, returnToGlobe) // zurück; ohne returnToGlobe bleibt die Kamera stehen
+setCameraMode('follow');                // Kamera fliegt zum Schiff und bleibt dran
+setCameraMode('steer');                 // Spielmodus mit Verfolgerkamera
+setCameraMode('off', returnToGlobe);    // zurück; ohne returnToGlobe bleibt die Kamera stehen
+steer(x, y);                            // Tasteneingabe: x +1 rechts, y +1 hoch (Bildschirm)
 ```
+
+`follow(on)` gibt es weiter als Kurzform für `'follow'`/`'off'`. In `pages/index.vue` bestimmt
+der Getter `globeStore.shipCameraMode` den Modus, die Tastatur (WASD/Pfeile, Esc) wird dort
+ausgewertet und per `steer()` weitergereicht.
 
 `collected` ist ein Ref mit der Zahl eingefangener Teile. Die Anzeige unten links in
 `pages/index.vue` liest es.
@@ -67,5 +73,24 @@ Bei `flying` wird 1,8 s lang zwischen der Startlage der Kamera und `followOffset
 ebenfalls in Schiffskoordinaten. So fliegt die Kamera weich an, obwohl das Schiff sich bewegt.
 Beim Beenden werden `controls.target` sowie Min- und Max-Distanz zurückgesetzt.
 
-In `pages/index.vue` muss der `followShip`-Watcher **vor** dem `followISS`-Watcher stehen.
+In `pages/index.vue` muss der `shipCameraMode`-Watcher **vor** dem `followISS`-Watcher stehen.
 Beim Wechsel Schiff → ISS löst sich die Kamera sonst nicht rechtzeitig vom Schiff.
+
+## Spielmodus
+
+- Das Schiff fliegt weiter automatisch vorwärts. Der Nutzer verschiebt es in einem Korridor
+  um die Bahn: `corridorHalfWidth` quer (Schiff-Z) und `corridorHalfHeight` radial.
+- Lenkung über Sollgeschwindigkeit plus Glättung (`steerResponse`), am Korridorrand wird
+  gestoppt. Außerhalb des Spielmodus gleitet das Schiff zur Bahnmitte zurück.
+- Das Schiff rollt in die Kurve und nickt beim Steigen/Sinken. Dafür hat es
+  `rotation.order = 'ZYX'`: `rotation.x` rollt um die eigene Längsachse, `rotation.z` ist
+  Grunddrehung plus Nicken.
+- Die Verfolgerkamera hängt an `cameraRig`, einem zweiten Objekt im Pivot, das dem Schiff
+  verzögert folgt (`steerCameraLag`). `camera.up` zeigt im Spielmodus von der Erde weg,
+  sonst wäre links/rechts auf dem Bildschirm je nach Bahnposition verdreht. Beim Verlassen
+  wird `camera.up` auf (0, 1, 0) zurückgesetzt, und `controls.enabled` ist im Spielmodus aus.
+- Bildschirm rechts ist Schiff **-Z**, Bildschirm oben ist Schiff **-Y** (von der Erde weg).
+- Der Schrott wird beim Wechsel in den Korridor verteilt (nur Teile weit weg vom Schiff).
+  Zusätzlich gibt es `gameDebrisCount` Teile, die nur im Spielmodus unterwegs sind und sonst
+  als `parked` unsichtbar bleiben. Die Fangzone ist im Spiel kleiner (`steerCaptureRadius`),
+  man muss also wirklich treffen.
