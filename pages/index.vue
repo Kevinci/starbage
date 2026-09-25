@@ -6,7 +6,9 @@
             <span class="h-2 w-2 animate-pulse rounded-full bg-[#E47F00]"></span>
             {{ $t('collector.counter') }}: <span class="font-semibold tabular-nums">{{ collectedDebris }}</span>
         </div>
-        <p v-if="satelliteTilesActive"
+        <div v-show="hazeOpacity > 0" class="pointer-events-none fixed inset-0 z-[1]"
+            :style="{ opacity: hazeOpacity, background: hazeGradient }"></div>
+        <p v-if="satelliteMapVisible"
             class="pointer-events-none fixed bottom-20 right-4 z-10 rounded bg-slate-900/70 px-2 py-1 text-[11px] text-slate-300 max-sm:bottom-28">
             {{ $t('tiles.attribution') }}
         </p>
@@ -28,6 +30,7 @@ const currentTime = ref(new Date().toString());
 import { ref, onMounted } from 'vue';
 import * as THREE from 'three';
 import Globe from 'globe.gl';
+import SlippyMapGlobe from 'three-slippy-map-globe';
 import * as satellite from 'satellite.js';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment.js';
@@ -57,14 +60,23 @@ const issSmoothing = 0.05; // Lerp-Faktor pro Frame für die ISS-Bewegung
 const issViewAltitude = 0.9; // Kamerahöhe in Globus-Radien, bei der die ISS das Bild füllt
 const followTransitionMs = 1400; // Dauer des Kameraflugs zur ISS
 
-// Satellitenkacheln von Esri beim Heranzoomen (wie Google Earth). Weiter oben bleibt die
-// eigene Erde mit Tag- und Nachtseite, darunter übernehmen die Kacheln.
-const satelliteTileUrl = (x: number, y: number, level: number) =>
-    `https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/${level}/${y}/${x}`;
+// Satellitenkarte beim Heranzoomen (wie Google Earth): Esri-Fotos und darüber Esris
+// Beschriftung als eigene Kachel-Ebenen. Die eigene Erde mit Tag- und Nachtseite blendet
+// über einen Höhenbereich aus, dazu ein leichter Dunst, als tauche man in die Lufthülle ein.
+// Höhen in Globus-Radien (1 = 6371 km).
+const esriTileUrl = (service: string) => (x: number, y: number, level: number) =>
+    `https://server.arcgisonline.com/ArcGIS/rest/services/${service}/MapServer/tile/${level}/${y}/${x}`;
 const satelliteTileMaxLevel = 18; // Häuserebene
-const tilesOnBelowAltitude = 0.33; // Kamerahöhe in Globus-Radien, etwa 2100 km
-const tilesOffAboveAltitude = 0.38; // etwas höher, damit es an der Grenze nicht flackert
-const satelliteTilesActive = ref(false);
+const tilesLoadBelowAltitude = 0.6; // Kacheln schon laden, solange die eigene Erde sie noch verdeckt
+const tilesUnloadAboveAltitude = 0.7; // etwas höher, damit es an der Grenze nicht hin und her springt
+const blendStartAltitude = 0.5; // ab etwa 3200 km blendet die eigene Erde aus ...
+const blendEndAltitude = 0.3; // ... bis sie bei etwa 1900 km ganz der Satellitenkarte weicht
+const hazeStrength = 0.45;
+const hazeGradient = 'radial-gradient(ellipse at center, rgba(224, 242, 254, 0.75) 0%, rgba(125, 211, 252, 0.45) 55%, rgba(14, 116, 144, 0.3) 100%)';
+const autoRotateSpeed = 0.15;
+const autoRotateFullAltitude = 2.5; // darüber volle Drehgeschwindigkeit, darunter langsamer
+const satelliteMapVisible = ref(false); // steuert die Quellenangabe
+const hazeOpacity = ref(0);
 let cloudsMesh: THREE.Mesh | null = null;
 let userMarkerMesh: THREE.Mesh | null = null;
 
@@ -108,8 +120,6 @@ const initGlobe = () => {
         .objectFacesSurface(true)
         .objectLabel('name')
         .atmosphereAltitude(0.12)
-        .globeTileEngineMaxLevel(satelliteTileMaxLevel)
-        .onZoom(({ altitude }) => updateSatelliteTiles(altitude))
         .onGlobeReady(() => {
             applyDayNightMaterial();
         })
@@ -132,9 +142,8 @@ const initGlobe = () => {
     controls.enableZoom = true;
     controls.maxDistance = world.value.getGlobeRadius() * 8;
 
-    // Auto-rotate
-    controls.autoRotate = true;
-    controls.autoRotateSpeed = 0.15;
+    // Auto-Rotation setzt startSatelliteMap pro Frame: langsamer beim Heranzoomen, aus
+    // über der Satellitenkarte und solange eine Kamera ISS oder Schiff folgt
 
     //Start Camera on Location
     if (navigator.geolocation) {
@@ -177,6 +186,7 @@ const initGlobe = () => {
     });
     addStars();
     addClouds();
+    startSatelliteMap();
     getUserPosition()
     addMoon()
     createISSGroup();
@@ -345,6 +355,7 @@ uniform float highlightRolloff;
 uniform float dayLift;
 uniform float daySaturation;
 uniform float deepSeaFloor;
+uniform float globeOpacity;
 
 varying vec2 vUv;
 
@@ -387,7 +398,7 @@ void main() {
 
     vec3 night = toLinear(texture2D(nightTexture, vUv).rgb) * nightBrightness;
 
-    gl_FragColor = vec4(mix(night, day, daylight), 1.0);
+    gl_FragColor = vec4(mix(night, day, daylight), globeOpacity);
 }
 `;
 
@@ -427,7 +438,8 @@ const applyDayNightMaterial = () => {
             highlightRolloff: { value: highlightRolloff },
             dayLift: { value: dayLift },
             daySaturation: { value: daySaturation },
-            deepSeaFloor: { value: deepSeaFloor }
+            deepSeaFloor: { value: deepSeaFloor },
+            globeOpacity: { value: 1 } // sinkt beim Übergang zur Satellitenkarte
         }
     });
 
@@ -437,21 +449,141 @@ const applyDayNightMaterial = () => {
     (world.value as any).globeMaterial(material);
 };
 
-// Das ISS-Modell nutzt PBR-Materialien: ohne Environment-Map bleiben Metallflaechen schwarz.
-// Kacheln abhängig von der Kamerahöhe ein- und ausschalten. Wolken und der Standortkegel
-// würden direkt über der Stadt hängen, deshalb solange ausblenden.
-const updateSatelliteTiles = (altitude: number) => {
-    const active = satelliteTilesActive.value
-        ? altitude < tilesOffAboveAltitude
-        : altitude < tilesOnBelowAltitude;
-    if (!world.value || active === satelliteTilesActive.value) return;
+// ------------------- Satellitenkarte beim Heranzoomen -------------------
+const startSatelliteMap = () => {
+    if (!world.value) return;
 
-    satelliteTilesActive.value = active;
-    world.value.globeTileEngineUrl(active ? satelliteTileUrl : (null as any));
-    if (cloudsMesh) cloudsMesh.visible = !active;
-    if (userMarkerMesh) userMarkerMesh.visible = !active;
+    const globe = world.value;
+    const radius = globe.getGlobeRadius();
+    const camera = globe.camera();
+    const controls = globe.controls();
+
+    const imagery = new SlippyMapGlobe(radius, {
+        tileUrl: esriTileUrl('World_Imagery'),
+        maxLevel: satelliteTileMaxLevel
+    });
+    // Knapp über den Fotos, damit sich beide Ebenen nicht flackernd durchdringen
+    const labels = new SlippyMapGlobe(radius * 1.00001, {
+        tileUrl: esriTileUrl('Reference/World_Boundaries_and_Places'),
+        maxLevel: satelliteTileMaxLevel
+    });
+    imagery.visible = false;
+    labels.visible = false;
+    globe.scene().add(imagery, labels);
+
+    // Die Kachel-Bibliothek lässt gröbere Zoomstufen im Hintergrund liegen. Bei deckenden Fotos
+    // fällt das nicht auf, bei transparenter Beschriftung stünde jeder Name doppelt da - deshalb
+    // nur die aktuelle Stufe zeigen. Die Stufe ergibt sich aus der Kachelbreite.
+    const tileLevel = (tile: THREE.Mesh) =>
+        Math.round(Math.log2((Math.PI * 2) / (tile.geometry as THREE.SphereGeometry).parameters.phiLength));
+    const showCurrentLabelLevel = () => {
+        labels.children.forEach(child => {
+            if (child.userData.labelTile) child.visible = tileLevel(child as THREE.Mesh) === labels.level;
+        });
+    };
+
+    // Beschriftung sind transparente PNGs - unbeleuchtet, damit sie auch nachts lesbar bleibt
+    let labelOpacity = 0;
+    labels.addEventListener('childadded', ({ child }) => {
+        const tile = child as THREE.Mesh;
+        const previous = tile.material as THREE.MeshLambertMaterial;
+        if (!previous.map) return; // innere Rückseite der Ebene, keine Kachel
+        tile.material = new THREE.MeshBasicMaterial({
+            map: previous.map,
+            transparent: true,
+            opacity: labelOpacity,
+            depthWrite: false,
+            polygonOffset: true,
+            polygonOffsetFactor: -2,
+            polygonOffsetUnits: -2
+        });
+        previous.dispose();
+        tile.userData.labelTile = true;
+        tile.visible = tileLevel(tile) === labels.level;
+    });
+
+    let tilesLoaded = false;
+    let globeMesh: THREE.Mesh | null = null;
+    let knownGlobeMaterial: THREE.Material | null = null;
+    const lastCameraMatrix = new THREE.Matrix4();
+
+    const step = () => {
+        if (!isRunning) return;
+
+        const altitude = camera.position.length() / radius - 1;
+
+        const load = tilesLoaded ? altitude < tilesUnloadAboveAltitude : altitude < tilesLoadBelowAltitude;
+        if (load !== tilesLoaded) {
+            tilesLoaded = load;
+            imagery.visible = load;
+            labels.visible = load;
+            lastCameraMatrix.identity(); // beim nächsten Frame sicher nach Kacheln fragen
+        }
+        // Nur nach neuen Kacheln fragen, wenn sich die Kamera bewegt hat
+        if (tilesLoaded && !lastCameraMatrix.equals(camera.matrixWorld)) {
+            lastCameraMatrix.copy(camera.matrixWorld);
+            imagery.updatePov(camera);
+            labels.updatePov(camera);
+            showCurrentLabelLevel();
+        }
+
+        // 0 = eigene Erde, 1 = nur noch Satellitenkarte
+        const blend = tilesLoaded
+            ? 1 - THREE.MathUtils.smoothstep(altitude, blendEndAltitude, blendStartAltitude)
+            : 0;
+
+        // Das Globus-Material wird nach dem Laden gegen den Tag/Nacht-Shader getauscht
+        const material = globe.globeMaterial() as THREE.ShaderMaterial;
+        if (material !== knownGlobeMaterial) {
+            knownGlobeMaterial = material;
+            globe.scene().traverse(object => {
+                if ((object as THREE.Mesh).material === material) globeMesh = object as THREE.Mesh;
+            });
+        }
+        if (globeMesh) {
+            globeMesh.visible = blend < 1;
+            // Solange die Fotos darunter liegen eine Spur größer, sonst flackern beide Flächen
+            globeMesh.scale.setScalar(tilesLoaded ? 1.0005 : 1);
+            if (material.uniforms?.globeOpacity) material.uniforms.globeOpacity.value = 1 - blend;
+            const transparent = blend > 0;
+            if (material.transparent !== transparent) {
+                material.transparent = transparent;
+                material.needsUpdate = true;
+            }
+        }
+
+        // Wolken lösen sich auf, der riesige Standortkegel hätte über der Stadt nichts verloren
+        if (cloudsMesh) {
+            (cloudsMesh.material as THREE.MeshPhongMaterial).opacity = 1 - blend;
+            cloudsMesh.visible = blend < 1;
+        }
+        if (userMarkerMesh) userMarkerMesh.visible = blend < 0.5;
+
+        if (Math.abs(labelOpacity - blend) > 0.005) {
+            labelOpacity = blend;
+            labels.children.forEach(child => {
+                const tileMaterial = (child as THREE.Mesh).material as THREE.Material;
+                if (tileMaterial?.transparent) tileMaterial.opacity = blend;
+            });
+        }
+
+        // Dunst ist mitten im Übergang am dichtesten
+        const haze = Math.round(hazeStrength * Math.sin(Math.PI * blend) * 100) / 100;
+        if (haze !== hazeOpacity.value) hazeOpacity.value = haze;
+        const mapVisible = blend > 0.5;
+        if (mapVisible !== satelliteMapVisible.value) satelliteMapVisible.value = mapVisible;
+
+        // Aus der Ferne dreht sich die Erde, beim Heranzoomen immer langsamer, über der Karte gar nicht
+        const cameraFree = globeStore.shipCameraMode === 'off' && !globeStore.followISS;
+        controls.autoRotate = cameraFree && blend < 1;
+        controls.autoRotateSpeed = autoRotateSpeed * Math.min(1, altitude / autoRotateFullAltitude) * (1 - blend);
+
+        requestAnimationFrame(step);
+    };
+    step();
 };
 
+// Das ISS-Modell nutzt PBR-Materialien: ohne Environment-Map bleiben Metallflaechen schwarz.
 const setupEnvironment = () => {
     if (!world.value) return;
 
@@ -525,7 +657,6 @@ const addClouds = () => {
         );
         world.value.scene().add(clouds);
         cloudsMesh = clouds;
-        clouds.visible = !satelliteTilesActive.value;
 
         (function rotateClouds() {
             if (!isRunning) return;
@@ -783,15 +914,12 @@ const animateISS = () => {
 watch(() => globeStore.shipCameraMode, mode => {
     if (!world.value) return;
 
-    world.value.controls().autoRotate = mode === 'off' && !globeStore.followISS;
     setShipCameraMode(mode, !globeStore.followISS);
     if (mode !== 'steer') releaseSteerKeys();
 });
 
 watch(() => globeStore.followISS, following => {
     if (!world.value) return;
-
-    world.value.controls().autoRotate = !following && globeStore.shipCameraMode === 'off';
 
     if (following) {
         followFlightPending = true;
@@ -841,8 +969,7 @@ const getUserPosition = () => {
                 markerMesh.position.setFromSphericalCoords(earthRadius + 4.5, phi, theta);
 
                 markerMesh.rotateX(THREE.MathUtils.degToRad(230));
-                // Der Kegel ist rund 290 km hoch - über den Satellitenkacheln wäre er nur im Weg
-                markerMesh.visible = !satelliteTilesActive.value;
+                // Der Kegel ist rund 290 km hoch - über der Satellitenkarte blendet er aus
                 userMarkerMesh = markerMesh;
 
                 // Füge die rote Kugel zur Szene hinzu

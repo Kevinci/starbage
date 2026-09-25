@@ -51,11 +51,23 @@ globe.gl nutzt OrbitControls. Die Kamera zielt normalerweise auf den Erdmittelpu
 - Die Zoom-Grenze nach unten setzt globe.gl selbst (knapp über der Oberfläche, abhängig von
   `camera.near`), ebenso Zoom- und Drehgeschwindigkeit passend zur Höhe.
 
-## Satellitenkacheln
+## Satellitenkarte
 
-Unter etwa 2100 km Kamerahöhe (`tilesOnBelowAltitude`) schaltet `updateSatelliteTiles` in
-`pages/index.vue` den Kachel-Layer von globe.gl ein (`globeTileEngineUrl`, Esri World Imagery,
-bis Zoomstufe 18). Darüber ist er aus, dann ist wieder der eigene Tag/Nacht-Shader zu sehen.
-Zwischen Ein- und Ausschalten liegt etwas Abstand, damit es an der Grenze nicht flackert.
-Solange die Kacheln aktiv sind, sind Wolken und Standortkegel ausgeblendet und unten rechts
-steht die Quellenangabe, die Esri verlangt. Ausgelöst wird das über `onZoom`.
+`startSatelliteMap` in `pages/index.vue` legt zwei eigene Kachel-Ebenen aus
+`three-slippy-map-globe` in die Szene: Esri World Imagery und knapp darüber Esris Beschriftung
+(`Reference/World_Boundaries_and_Places`, transparente PNGs, bis Zoomstufe 18). Die eingebaute
+Tile-Engine von globe.gl wird bewusst nicht genutzt, weil sie die eigene Erde hart ausblendet.
+
+Pro Frame, abhängig von der Kamerahöhe (in Globus-Radien):
+
+- Unter `tilesLoadBelowAltitude` werden die Kacheln geladen, noch verdeckt von der eigenen Erde,
+  die dafür eine Spur größer skaliert ist.
+- Zwischen `blendStartAltitude` und `blendEndAltitude` blendet die eigene Erde über die Uniform
+  `globeOpacity` des Tag/Nacht-Shaders aus. Wolken und Beschriftung blenden mit, und ein
+  Dunst-Overlay (`hazeOpacity`) ist in der Mitte des Übergangs am dichtesten.
+- Die Auto-Rotation wird dort ebenfalls gesetzt: langsamer mit sinkender Höhe, aus über der
+  Karte und solange eine Kamera ISS oder Schiff folgt. Nirgends sonst `autoRotate` setzen.
+- Bei der Beschriftung ist nur die aktuelle Zoomstufe sichtbar (Stufe aus der Kachelbreite),
+  sonst stünden Namen aus der gröberen Stufe doppelt darunter.
+
+Die Quellenangabe für Esri erscheint unten rechts, sobald die Karte überwiegt.
