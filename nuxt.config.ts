@@ -13,7 +13,11 @@ export default defineNuxtConfig({
     // GitHub Pages (Jekyll) ignoriert Ordner mit führendem Unterstrich -> kein '_nuxt'.
     buildAssetsDir: 'nuxt',
     head: {
-      link: [{ rel: 'icon', type: 'image/x-icon', href: `${baseURL}favicon.ico` }]
+      // SVG-Satellit für moderne Browser, favicon.ico (aus dem SVG gerendert) als Fallback.
+      link: [
+        { rel: 'icon', type: 'image/svg+xml', href: `${baseURL}favicon.svg` },
+        { rel: 'icon', type: 'image/x-icon', href: `${baseURL}favicon.ico`, sizes: '32x32' }
+      ]
     }
   },
   postcss: {

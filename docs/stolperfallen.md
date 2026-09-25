@@ -52,3 +52,10 @@ Tipps:
 
 OrbitControls begrenzt den Abstand zu `controls.target` (`minDistance`, `maxDistance`). Wer das
 Ziel vom Erdmittelpunkt wegbewegt, muss die Grenzen mit anpassen, sonst springt die Kamera.
+
+## Favicon
+
+Quelle ist `public/favicon.svg`. `public/favicon.ico` ist daraus gerendert (16 + 32 px, PNG im ICO)
+und nur Fallback für ältere Browser. Nach Änderungen am SVG neu erzeugen, z. B. mit
+`rsvg-convert -w 32 -h 32 public/favicon.svg -o fav32.png` (ebenso 16 px) und die PNGs zu einem
+ICO zusammenpacken. Das `sizes="32x32"` am ICO-Link sorgt dafür, dass Chrome das SVG bevorzugt.
