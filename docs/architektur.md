@@ -46,6 +46,16 @@ globe.gl nutzt OrbitControls. Die Kamera zielt normalerweise auf den Erdmittelpu
 - **ISS folgen** (`followISS`): `pointOfView` auf die ISS-Position, jedes Frame nachgeführt.
 - **Schiff folgen** (`followShip`): `controls.target` wandert mit dem Schiff, siehe
   [abfangschiff.md](abfangschiff.md#mitflug-kamera).
-- Beide schließen sich im Store gegenseitig aus. `autoRotate` ist nur an, wenn keiner aktiv ist.
-- `controls.minDistance` setzt die ISS beim ersten Fix auf knapp unter ihre Bahn. Das
-  überspringt sie, solange man mit dem Schiff fliegt.
+- ISS, Mitfliegen und Spielmodus schließen sich im Store gegenseitig aus. `autoRotate` ist nur
+  an, wenn nichts davon aktiv ist.
+- Die Zoom-Grenze nach unten setzt globe.gl selbst (knapp über der Oberfläche, abhängig von
+  `camera.near`), ebenso Zoom- und Drehgeschwindigkeit passend zur Höhe.
+
+## Satellitenkacheln
+
+Unter etwa 2100 km Kamerahöhe (`tilesOnBelowAltitude`) schaltet `updateSatelliteTiles` in
+`pages/index.vue` den Kachel-Layer von globe.gl ein (`globeTileEngineUrl`, Esri World Imagery,
+bis Zoomstufe 18). Darüber ist er aus, dann ist wieder der eigene Tag/Nacht-Shader zu sehen.
+Zwischen Ein- und Ausschalten liegt etwas Abstand, damit es an der Grenze nicht flackert.
+Solange die Kacheln aktiv sind, sind Wolken und Standortkegel ausgeblendet und unten rechts
+steht die Quellenangabe, die Esri verlangt. Ausgelöst wird das über `onZoom`.

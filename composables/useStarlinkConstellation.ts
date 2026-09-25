@@ -222,7 +222,7 @@ export const useStarlinkConstellation = () => {
         });
         setVisible(visible);
 
-        const clock = new THREE.Clock();
+        const timer = new THREE.Timer();
         const orbitMatrix = new THREE.Matrix4();
         const matrix = new THREE.Matrix4();
         let elapsed = 0;
@@ -230,7 +230,8 @@ export const useStarlinkConstellation = () => {
         const step = () => {
             if (!isRunning()) return;
 
-            elapsed += Math.min(clock.getDelta(), 0.05);
+            timer.update();
+            elapsed += Math.min(timer.getDelta(), 0.05);
 
             // Ausgeblendet laufen die Bahnen weiter, nur die Matrizen spart man sich
             if (!isVisible) {

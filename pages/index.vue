@@ -6,6 +6,10 @@
             <span class="h-2 w-2 animate-pulse rounded-full bg-[#E47F00]"></span>
             {{ $t('collector.counter') }}: <span class="font-semibold tabular-nums">{{ collectedDebris }}</span>
         </div>
+        <p v-if="satelliteTilesActive"
+            class="pointer-events-none fixed bottom-20 right-4 z-10 rounded bg-slate-900/70 px-2 py-1 text-[11px] text-slate-300 max-sm:bottom-28">
+            {{ $t('tiles.attribution') }}
+        </p>
         <Transition enter-from-class="opacity-0" leave-to-class="opacity-0"
             enter-active-class="transition-opacity duration-500" leave-active-class="transition-opacity duration-1000">
             <div v-if="showSteerHint"
@@ -52,7 +56,17 @@ const issTargetSize = 24; // groesste Kantenlaenge des ISS-Modells in Globus-Ein
 const issSmoothing = 0.05; // Lerp-Faktor pro Frame für die ISS-Bewegung
 const issViewAltitude = 0.9; // Kamerahöhe in Globus-Radien, bei der die ISS das Bild füllt
 const followTransitionMs = 1400; // Dauer des Kameraflugs zur ISS
-const zoomFloorFactor = 0.94; // Zoom endet knapp unterhalb der ISS-Bahn
+
+// Satellitenkacheln von Esri beim Heranzoomen (wie Google Earth). Weiter oben bleibt die
+// eigene Erde mit Tag- und Nachtseite, darunter übernehmen die Kacheln.
+const satelliteTileUrl = (x: number, y: number, level: number) =>
+    `https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/${level}/${y}/${x}`;
+const satelliteTileMaxLevel = 18; // Häuserebene
+const tilesOnBelowAltitude = 0.33; // Kamerahöhe in Globus-Radien, etwa 2100 km
+const tilesOffAboveAltitude = 0.38; // etwas höher, damit es an der Grenze nicht flackert
+const satelliteTilesActive = ref(false);
+let cloudsMesh: THREE.Mesh | null = null;
+let userMarkerMesh: THREE.Mesh | null = null;
 
 // Sonne. Die echte Entfernung wären rund 23.500 Erdradien - so weit weg würde
 // sie nur dann ins Bild passen, wenn sie fast genau hinter der Erde steht und
@@ -94,6 +108,8 @@ const initGlobe = () => {
         .objectFacesSurface(true)
         .objectLabel('name')
         .atmosphereAltitude(0.12)
+        .globeTileEngineMaxLevel(satelliteTileMaxLevel)
+        .onZoom(({ altitude }) => updateSatelliteTiles(altitude))
         .onGlobeReady(() => {
             applyDayNightMaterial();
         })
@@ -110,11 +126,10 @@ const initGlobe = () => {
             return el;
         });
 
-    // Zoom erlauben, aber begrenzt: nicht in den Globus hinein und nicht ins Nichts
+    // Heranzoomen bis knapp über die Oberfläche setzt globe.gl selbst (minDistance, dazu
+    // Zoom- und Drehgeschwindigkeit passend zur Höhe) - hier nur nicht ins Nichts
     const controls = world.value.controls();
     controls.enableZoom = true;
-    controls.zoomSpeed = 0.6;
-    controls.minDistance = world.value.getGlobeRadius() * 1.3; // vorläufig, bis die ISS-Bahn bekannt ist
     controls.maxDistance = world.value.getGlobeRadius() * 8;
 
     // Auto-rotate
@@ -423,6 +438,20 @@ const applyDayNightMaterial = () => {
 };
 
 // Das ISS-Modell nutzt PBR-Materialien: ohne Environment-Map bleiben Metallflaechen schwarz.
+// Kacheln abhängig von der Kamerahöhe ein- und ausschalten. Wolken und der Standortkegel
+// würden direkt über der Stadt hängen, deshalb solange ausblenden.
+const updateSatelliteTiles = (altitude: number) => {
+    const active = satelliteTilesActive.value
+        ? altitude < tilesOffAboveAltitude
+        : altitude < tilesOnBelowAltitude;
+    if (!world.value || active === satelliteTilesActive.value) return;
+
+    satelliteTilesActive.value = active;
+    world.value.globeTileEngineUrl(active ? satelliteTileUrl : (null as any));
+    if (cloudsMesh) cloudsMesh.visible = !active;
+    if (userMarkerMesh) userMarkerMesh.visible = !active;
+};
+
 const setupEnvironment = () => {
     if (!world.value) return;
 
@@ -495,6 +524,8 @@ const addClouds = () => {
             new THREE.MeshPhongMaterial({ map: cloudsTexture, transparent: true })
         );
         world.value.scene().add(clouds);
+        cloudsMesh = clouds;
+        clouds.visible = !satelliteTilesActive.value;
 
         (function rotateClouds() {
             if (!isRunning) return;
@@ -696,12 +727,6 @@ const updateISSPosition = () => {
                 issPivot.quaternion.copy(issTargetQuaternion);
                 issPivot.visible = true;
                 issHasFix = true;
-
-                // Näher als knapp unter die ISS soll die Kamera nicht heran - außer
-                // beim Mitfliegen mit dem Schiff, das setzt seine eigene Grenze
-                if (globeStore.shipCameraMode === 'off') {
-                    world.value.controls().minDistance = issTargetPosition.length() * zoomFloorFactor;
-                }
             }
         })
         .catch(error => {
@@ -816,6 +841,9 @@ const getUserPosition = () => {
                 markerMesh.position.setFromSphericalCoords(earthRadius + 4.5, phi, theta);
 
                 markerMesh.rotateX(THREE.MathUtils.degToRad(230));
+                // Der Kegel ist rund 290 km hoch - über den Satellitenkacheln wäre er nur im Weg
+                markerMesh.visible = !satelliteTilesActive.value;
+                userMarkerMesh = markerMesh;
 
                 // Füge die rote Kugel zur Szene hinzu
                 world.value.scene().add(markerMesh);

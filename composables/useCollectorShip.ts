@@ -731,7 +731,7 @@ export const useCollectorShip = () => {
         const toOrbitLocal = (local: THREE.Vector3, target: THREE.Vector3) =>
             orbit.worldToLocal(parts.ship.localToWorld(target.copy(local)));
 
-        const clock = new THREE.Clock();
+        const timer = new THREE.Timer();
         let elapsed = 0;
         let netFlash = 0; // 1 direkt nach einem Fang, klingt ab
         let beamBoost = 0;
@@ -739,7 +739,8 @@ export const useCollectorShip = () => {
         const step = () => {
             if (!isRunning()) return;
 
-            const dt = Math.min(clock.getDelta(), 0.05);
+            timer.update();
+            const dt = Math.min(timer.getDelta(), 0.05);
             elapsed += dt;
 
             // Kameralage relativ zum Schiff merken, bevor es weiterfliegt - so

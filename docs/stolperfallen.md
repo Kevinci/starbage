@@ -48,6 +48,18 @@ Tipps:
 - Für die Mitflug-Ansicht einfach den Navbar-Button per Skript klicken, zoomen per
   `WheelEvent` auf das Canvas in `#chart`.
 
+## globe.gl setzt das Kameraziel zurück
+
+Seit globe.gl 2.4x setzt ein `change`-Listener auf den Controls bei jeder Kamerabewegung
+`controls.target` auf den Erdmittelpunkt zurück. Mitflug- und Spielkamera funktionieren
+trotzdem, weil sie Ziel und Kamera in jedem Frame selbst setzen. Wer eine neue Kamera baut,
+die um etwas anderes als die Erde kreist, muss das ebenfalls jedes Frame tun.
+
+## three.js-Version
+
+globe.gl 2.46 braucht three.js ab 0.179. `THREE.Clock` ist dort veraltet, stattdessen
+`THREE.Timer` nehmen (`timer.update()` pro Frame, dann `getDelta()`).
+
 ## Kamera-Grenzen
 
 OrbitControls begrenzt den Abstand zu `controls.target` (`minDistance`, `maxDistance`). Wer das

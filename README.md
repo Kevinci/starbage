@@ -17,6 +17,7 @@ Gebaut mit Nuxt 3 (SPA, `ssr: false`), three.js / globe.gl, Pinia, Tailwind CSS 
 | [wheretheiss.at](https://wheretheiss.at/) | Live-Position der ISS | ja |
 | `public/data.txt` (TLE) | Satellitenbahnen, propagiert mit `satellite.js` | ja |
 | [The Space Devs](https://thespacedevs.com/) | Personen im All | ja |
+| [Esri World Imagery](https://www.arcgis.com/home/item.html?id=10df2279f9684e4a9f6a7f08febac2a9) | Satellitenkacheln beim Heranzoomen (unter ca. 2100 km Kamerahöhe) | ja |
 | generiert im Client | Trümmerwolke, Starlink-Konstellation, Bergungsschiff | nein, erfundene Koordinaten |
 
 Die Tag- und Nachtseite wird aus dem echten subsolaren Punkt zur aktuellen Uhrzeit

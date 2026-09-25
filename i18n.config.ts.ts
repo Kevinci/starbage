@@ -67,6 +67,9 @@ export default defineI18nConfig(() => ({
         source: 'Zahlen: Schätzungen des ESA Space Debris Office, Stand 2025.',
         sourceLink: 'ESA: Space debris by the numbers'
       },
+      tiles: {
+        attribution: 'Satellitenbilder: Esri, Maxar, Earthstar Geographics und die GIS-Community'
+      },
       nav: {
         info: 'Informationen',
         view: 'Anzeigen',
@@ -143,6 +146,9 @@ export default defineI18nConfig(() => ({
         actionText: 'Operators now have to deliberately de-orbit satellites at end of mission or move them into a graveyard orbit. Missions such as ClearSpace-1 aim to actively collect debris for the first time. And space agencies compute avoidance manoeuvres daily – including for the ISS.',
         source: 'Figures: estimates by the ESA Space Debris Office, as of 2025.',
         sourceLink: 'ESA: Space debris by the numbers'
+      },
+      tiles: {
+        attribution: 'Imagery: Esri, Maxar, Earthstar Geographics and the GIS User Community'
       },
       nav: {
         info: 'Information',
