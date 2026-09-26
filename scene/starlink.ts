@@ -148,7 +148,7 @@ const buildGeometries = () => {
     return { chassis, array: arrayWithMast, fittings };
 };
 
-export const useStarlinkConstellation = () => {
+export const createStarlinkConstellation = () => {
     let meshes: THREE.InstancedMesh[] = [];
     let isVisible = false;
 

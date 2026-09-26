@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { ref } from 'vue';
 import type { GlobeInstance } from 'globe.gl';
 import { createCollectorSurfaces, withRepeat, type CollectorSurfaces, type Surface } from './collectorTextures';
 
@@ -473,7 +474,7 @@ const buildDebris = (kind: number, surfaces: CollectorSurfaces, solarTexture: TH
 
 const easeInOut = (t: number) => t * t * (3 - 2 * t);
 
-export const useCollectorShip = () => {
+export const createCollectorShip = () => {
     const collected = ref(0);
 
     let globe: GlobeInstance | null = null;

@@ -29,10 +29,10 @@ Neue Texte gehören in **beide** Sprachblöcke (`de` und `en`) in `i18n.config.t
 ## Szene im Browser prüfen
 
 Die globe.gl-Instanz ist nicht global erreichbar. Zum Prüfen mit Chrome DevTools kurzzeitig
-in `initGlobe` einfügen:
+in `initScene` (`pages/index.vue`) nach dem Anlegen des Kontexts einfügen:
 
 ```ts
-(window as any).__dbgWorld = world.value; // TEMP-DEBUG
+(window as any).__dbgWorld = world; // TEMP-DEBUG
 ```
 
 Danach kommt man per Skript an Szene, Kamera und Controls (`__dbgWorld.scene()`, `.camera()`,

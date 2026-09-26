@@ -1,13 +1,13 @@
 # Abfangschiff
 
 Erfundenes Schiff, das auf einer eigenen Bahn Weltraumschrott mit einem Netz einsammelt.
-Alles simuliert, keine echten Koordinaten. Code in `composables/useCollectorShip.ts`,
-Texturen in `composables/collectorTextures.ts`.
+Alles simuliert, keine echten Koordinaten. Code in `scene/collectorShip.ts`,
+Texturen in `scene/collectorTextures.ts`, Tastatur in `composables/useSteerKeyboard.ts`.
 
 ## Schnittstelle
 
 ```ts
-const { collected, start, follow, setCameraMode, steer } = useCollectorShip();
+const { collected, start, follow, setCameraMode, steer } = createCollectorShip();
 
 start({ world, earthRadiusKm, solarTextureUrl, logoUrl, isRunning: () => isRunning });
 setCameraMode('follow');                // Kamera fliegt zum Schiff und bleibt dran
@@ -17,8 +17,8 @@ steer(x, y);                            // Tasteneingabe: x +1 rechts, y +1 hoch
 ```
 
 `follow(on)` gibt es weiter als Kurzform für `'follow'`/`'off'`. In `pages/index.vue` bestimmt
-der Getter `globeStore.shipCameraMode` den Modus, die Tastatur (WASD/Pfeile, Esc) wird dort
-ausgewertet und per `steer()` weitergereicht.
+der Getter `globeStore.shipCameraMode` den Modus. Die Tastatur (WASD/Pfeile, Esc) wertet
+`useSteerKeyboard` aus und reicht sie per `steer()` weiter.
 
 `collected` ist ein Ref mit der Zahl eingefangener Teile. Die Anzeige unten links in
 `pages/index.vue` liest es.
